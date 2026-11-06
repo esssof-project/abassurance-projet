@@ -185,19 +185,10 @@ services:
       db-assureplus:
         condition: service_healthy
 
-  # =========================================================
-  # QUALITE DE CODE (Dossier 3 : SonarQube)
-  # =========================================================
-  sonarqube:
-    image: sonarqube:community
-    container_name: sonarqube
-    environment:
-      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-    ports:
-      - "9000:9000"
-    volumes:
-      - sonar_data:/sonarqube/data
-      - sonar_extensions:/sonarqube/extensions
+  # NB : SonarQube (conteneur ~2 Go RAM) est remplace par :
+  #   - ruff + bandit en local (analyse statique + securite, rapides et legers)
+  #   - SonarCloud branche sur le repo Git public via GitHub Actions
+  # Voir sonar/sonar-project.properties et .github/workflows/quality.yml
 
 volumes:
   pgab_data: {}
@@ -208,5 +199,3 @@ volumes:
   pg_data: {}
   caddy_data: {}
   caddy_config: {}
-  sonar_data: {}
-  sonar_extensions: {}

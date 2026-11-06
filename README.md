@@ -28,4 +28,11 @@ chaine (Kafka, Spark, Hadoop, Dataviz) reste strictement identique.
 ## Access
 - Dashboard Metabase : https://dashboard.abassurance.local
 - HDFS UI : http://localhost:9870 | Spark UI : http://localhost:8080
-- SonarQube : http://localhost:9000 (admin/admin)
+
+## Qualite de code (Dossier 3)
+- En local : `./run-tests.sh` lance pytest+coverage, ruff (analyse statique)
+  et bandit (securite) sans aucun serveur dedie.
+- Sur le repo : GitHub Actions (.github/workflows/quality.yml) branche
+  SonarCloud (gratuit pour un repo public). Creer un compte sur
+  sonarcloud.io, activer l'organisation, puis definir le secret
+  SONAR_TOKEN dans les parametres du repo GitHub.
