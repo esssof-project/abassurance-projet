@@ -1,0 +1,212 @@
+services:
+
+  # =========================================================
+  # BASES SOURCES SIMULEES (version LEGERE pour la demo)
+  # En production : Oracle (AbAssurance) / SQL Server (AssurePlus).
+  # Pour la demo : 2 instances PostgreSQL alpines (~90 Mo, ~30 Mo RAM)
+  # respectant les schemas de l'enonce (AB_* / AP_*).
+  # =========================================================
+  db-abassur:
+    image: postgres:16-alpine
+    container_name: db-abassur
+    environment:
+      POSTGRES_DB: abassurance
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: Demo123!
+    volumes:
+      - ./oracle-init:/docker-entrypoint-initdb.d
+      - pgab_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d abassurance"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-assureplus:
+    image: postgres:16-alpine
+    container_name: db-assureplus
+    environment:
+      POSTGRES_DB: assureplus
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: Demo123!
+    volumes:
+      - ./sqlserver-init:/docker-entrypoint-initdb.d
+      - pgap_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d assureplus"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # =========================================================
+  # BUS DE DONNEES (Apache Kafka, mode KRaft, sans Zookeeper)
+  # =========================================================
+  kafka:
+    image: apache/kafka:3.7.2
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # =========================================================
+  # DATA LAKE HADOOP (HDFS)
+  # =========================================================
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=test
+    env_file: ./hadoop.env
+    ports:
+      - "9870:9870"
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    env_file: ./hadoop.env
+    depends_on:
+      - namenode
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+
+  # =========================================================
+  # MOTEUR DE TRAITEMENT (Apache Spark cluster)
+  # =========================================================
+  spark-master:
+    image: apache/spark:3.5.1-java17-python3
+    container_name: spark-master
+    command: /opt/spark/sbin/start-master.sh
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./spark:/opt/spark-apps
+
+  spark-worker:
+    image: apache/spark:3.5.1-java17-python3
+    container_name: spark-worker
+    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./spark:/opt/spark-apps
+
+  # =========================================================
+  # DATAMART (cible des agregats Spark, lu par Metabase)
+  # =========================================================
+  postgres:
+    image: postgres:16
+    container_name: postgres-datamart
+    environment:
+      POSTGRES_DB: datamart
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Admin123!
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  # =========================================================
+  # DATAVIZ (Metabase, accessible UNIQUEMENT via Caddy en HTTPS)
+  # =========================================================
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: "5432"
+      MB_DB_DBNAME: datamart
+      MB_DB_USER: admin
+      MB_DB_PASS: Admin123!
+    depends_on:
+      - postgres
+
+  # =========================================================
+  # REVERSE PROXY HTTPS (Caddy, TLS interne + redirection HTTP->HTTPS)
+  # =========================================================
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - metabase
+
+  # =========================================================
+  # PRODUCER "TALEND-LIKE" (extraction -> normalisation -> Kafka)
+  # =========================================================
+  producer:
+    build: ./producer
+    container_name: producer
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      AB_DB_HOST: db-abassur
+      AB_DB_NAME: abassurance
+      AP_DB_HOST: db-assureplus
+      AP_DB_NAME: assureplus
+      DB_USER: demo
+      DB_PASSWORD: Demo123!
+    depends_on:
+      kafka:
+        condition: service_started
+      db-abassur:
+        condition: service_healthy
+      db-assureplus:
+        condition: service_healthy
+
+  # =========================================================
+  # QUALITE DE CODE (Dossier 3 : SonarQube)
+  # =========================================================
+  sonarqube:
+    image: sonarqube:community
+    container_name: sonarqube
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonar_data:/sonarqube/data
+      - sonar_extensions:/sonarqube/extensions
+
+volumes:
+  pgab_data: {}
+  pgap_data: {}
+  kafka_data: {}
+  namenode_data: {}
+  datanode_data: {}
+  pg_data: {}
+  caddy_data: {}
+  caddy_config: {}
+  sonar_data: {}
+  sonar_extensions: {}
