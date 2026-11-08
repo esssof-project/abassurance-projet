@@ -1,6 +1,6 @@
 dashboard.abassurance.local {
     tls internal
-    reverse_proxy metabase:3000
+    reverse_proxy dataviz:8501
 }
 
 http://dashboard.abassurance.local {

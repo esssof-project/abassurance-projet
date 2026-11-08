@@ -1,8 +1,9 @@
-"""Producer Talend-like : extraction des deux bases sources
-(AbAssurance schema AB_* / AssurePlus schema AP_*),
+"""Producer Talend-like (mode batch) : extraction des deux bases sources,
 normalisation vers le modele unifie, pseudonymisation RGPD,
 publication vers Apache Kafka. Les imports lourds sont lazy
-pour permettre les tests unitaires sans les dependances DB/Kafka."""
+pour permettre les tests unitaires sans les dependances DB/Kafka.
+NB : en mode temps reel, c'est Debezium (CDC) qui alimente Kafka ;
+ce producer demontre le mode batch (Talend) du Bloc 1."""
 
 import os
 import json
@@ -23,7 +24,6 @@ def is_valid_email_pseudo(h):
 
 def extract_abassur(conn_factory=None):
     """Extraction + normalisation AbAssurance (base source AbAssurance).
-    Pour la demo : PostgreSQL simulant le schema Oracle AB_*.
     conn_factory injecte une connexion (pattern utile pour les tests)."""
     conn = conn_factory.connect()
     cur = conn.cursor()
@@ -57,8 +57,7 @@ def extract_abassur(conn_factory=None):
 
 
 def extract_assureplus(conn_factory=None):
-    """Extraction + normalisation AssurePlus (base source AssurePlus).
-    Pour la demo : PostgreSQL simulant le schema SQL Server AP_*."""
+    """Extraction + normalisation AssurePlus (base source AssurePlus)."""
     conn = conn_factory.connect()
     cur = conn.cursor()
     cur.execute("""SELECT AP_USER_ID, AP_FULL_NAME, AP_BIRTH_DATE, AP_MAIL_ADDRESS,
@@ -92,12 +91,26 @@ def extract_assureplus(conn_factory=None):
 
 
 def main():
+    import time
     import psycopg2
     from kafka import KafkaProducer
+    from kafka.errors import NoBrokersAvailable
 
     bootstrap = os.getenv("KAFKA_BOOTSTRAP", "kafka:9092")
-    producer = KafkaProducer(bootstrap_servers=bootstrap,
-        value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"))
+
+    # Retry : le broker peut etre encore en phase de demarrage
+    producer = None
+    for attempt in range(1, 31):
+        try:
+            producer = KafkaProducer(bootstrap_servers=bootstrap,
+                value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"))
+            print(f"Connecte au broker Kafka ({bootstrap}) apres {attempt} essai(s).")
+            break
+        except NoBrokersAvailable:
+            print(f"Kafka pas encore disponible, nouvel essai {attempt}/30 dans 5 s...")
+            time.sleep(5)
+    if producer is None:
+        raise SystemExit("Impossible de joindre le broker Kafka apres 30 essais.")
 
     class AbFactory:
         @staticmethod

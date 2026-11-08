@@ -8,12 +8,12 @@ docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
 echo ""
 echo "=== Analyse statique : ruff (qualite de code) ==="
 docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install -q ruff && ruff check producer/ spark/ tests/"
+  "pip install -q ruff && ruff check producer/ spark/ dataviz/ tests/"
 
 echo ""
-echo "=== Analyse de securite : bandit (fuites de PII, code vulnérable) ==="
+echo "=== Analyse de securite : bandit (fuites de PII, code vulnerable) ==="
 docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install -q bandit && bandit -r producer/ spark/ -ll"
+  "pip install -q bandit && bandit -r producer/ spark/ dataviz/ -ll"
 
 echo ""
 echo "Rapports generes : coverage.xml (SonarCloud), analyses ruff + bandit ci-dessus"

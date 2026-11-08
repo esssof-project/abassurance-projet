@@ -1,0 +1,23 @@
+{
+  "name": "source-abassur",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "db-abassur",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "Debez123!",
+    "database.dbname": "abassurance",
+    "topic.prefix": "dbab",
+    "schema.include.list": "ab",
+    "table.include.list": "ab.ab_client,ab.ab_contrat,ab.ab_sinistre,ab.ab_paiement",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "plugin.name": "pgoutput",
+    "slot.name": "slot_ab",
+    "publication.name": "dbz_publication",
+    "publication.autocreate.mode": "disabled",
+    "tombstones.on.delete": "false",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}

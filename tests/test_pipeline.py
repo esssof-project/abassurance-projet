@@ -2,7 +2,7 @@ import pandas as pd
 
 
 def build_doublons(clients):
-    """Replique testable de la logique de matrice de doublons du job Spark :
+    """Replique testable de la logique de matrice de doublons du pipeline :
     jointure interne sur l'empreinte email entre les deux sources,
     avec filtrage des empreintes NULL (correctif du bug identifie)."""
     df = clients.dropna(subset=["email_pseudo"])

@@ -5,10 +5,12 @@ services:
   # En production : Oracle (AbAssurance) / SQL Server (AssurePlus).
   # Pour la demo : 2 instances PostgreSQL alpines (~90 Mo, ~30 Mo RAM)
   # respectant les schemas de l'enonce (AB_* / AP_*).
+  # wal_level=logical : indispensable pour la capture CDC (Debezium).
   # =========================================================
   db-abassur:
     image: postgres:16-alpine
     container_name: db-abassur
+    command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: abassurance
       POSTGRES_USER: demo
@@ -25,6 +27,7 @@ services:
   db-assureplus:
     image: postgres:16-alpine
     container_name: db-assureplus
+    command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: assureplus
       POSTGRES_USER: demo
@@ -61,9 +64,38 @@ services:
       - "9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
 
   # =========================================================
-  # DATA LAKE HADOOP (HDFS)
+  # CDC TEMPS REEL (Debezium / Kafka Connect)
+  # Capture chaque INSERT/UPDATE/DELETE des bases sources -> Kafka
+  # =========================================================
+  kafka-connect:
+    image: debezium/connect:2.7.0.Final
+    container_name: kafka-connect
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: "1"
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # =========================================================
+  # DATA LAKE HADOOP (HDFS) — stockage terminal de l'architecture
   # =========================================================
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
@@ -86,7 +118,7 @@ services:
       - datanode_data:/hadoop/dfs/data
 
   # =========================================================
-  # MOTEUR DE TRAITEMENT (Apache Spark cluster)
+  # MOTEUR DE TRAITEMENT (Apache Spark cluster, mode batch)
   # =========================================================
   spark-master:
     image: apache/spark:3.5.1-java17-python3
@@ -117,38 +149,38 @@ services:
       - ./spark:/opt/spark-apps
 
   # =========================================================
-  # DATAMART (cible des agregats Spark, lu par Metabase)
+  # SPARK STREAMING (tourne en continu : consomme le CDC Kafka et
+  # ecrit les evenements en Parquet dans HDFS — pas de base
+  # intermediaire : Hadoop -> Dataviz, conforme a l'architecture)
   # =========================================================
-  postgres:
-    image: postgres:16
-    container_name: postgres-datamart
-    environment:
-      POSTGRES_DB: datamart
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: Admin123!
-    ports:
-      - "5432:5432"
+  spark-streaming:
+    image: apache/spark:3.5.1-java17-python3
+    container_name: spark-streaming
+    command: ["bash","-c","export HOME=/tmp && /opt/spark/bin/spark-submit --master 'local[*]' --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 /opt/spark-apps/streaming_pipeline.py"]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      namenode:
+        condition: service_started
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ./spark:/opt/spark-apps
 
   # =========================================================
-  # DATAVIZ (Metabase, accessible UNIQUEMENT via Caddy en HTTPS)
+  # DATAVIZ (Streamlit + Plotly : dashboards Python qui lisent
+  # le Data Lake HDFS via WebHDFS). Pas de port expose directement :
+  # l'acces se fait UNIQUEMENT en HTTPS via Caddy.)
   # =========================================================
-  metabase:
-    image: metabase/metabase:latest
-    container_name: metabase
-    environment:
-      MB_DB_TYPE: postgres
-      MB_DB_HOST: postgres
-      MB_DB_PORT: "5432"
-      MB_DB_DBNAME: datamart
-      MB_DB_USER: admin
-      MB_DB_PASS: Admin123!
+  dataviz:
+    build: ./dataviz
+    container_name: dataviz
     depends_on:
-      - postgres
+      - namenode
 
   # =========================================================
   # REVERSE PROXY HTTPS (Caddy, TLS interne + redirection HTTP->HTTPS)
+  # Le Dataviz est accessible uniquement via
+  # https://dashboard.abassurance.local (entree /etc/hosts requise)
   # =========================================================
   caddy:
     image: caddy:2
@@ -161,10 +193,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - metabase
+      - dataviz
 
   # =========================================================
-  # PRODUCER "TALEND-LIKE" (extraction -> normalisation -> Kafka)
+  # PRODUCER "TALEND-LIKE" batch (demo du mode batch initial)
   # =========================================================
   producer:
     build: ./producer
@@ -179,16 +211,11 @@ services:
       DB_PASSWORD: Demo123!
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
       db-abassur:
         condition: service_healthy
       db-assureplus:
         condition: service_healthy
-
-  # NB : SonarQube (conteneur ~2 Go RAM) est remplace par :
-  #   - ruff + bandit en local (analyse statique + securite, rapides et legers)
-  #   - SonarCloud branche sur le repo Git public via GitHub Actions
-  # Voir sonar/sonar-project.properties et .github/workflows/quality.yml
 
 volumes:
   pgab_data: {}
@@ -196,6 +223,5 @@ volumes:
   kafka_data: {}
   namenode_data: {}
   datanode_data: {}
-  pg_data: {}
   caddy_data: {}
   caddy_config: {}

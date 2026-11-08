@@ -1,0 +1,23 @@
+{
+  "name": "source-assureplus",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "db-assureplus",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "Debez123!",
+    "database.dbname": "assureplus",
+    "topic.prefix": "dbap",
+    "schema.include.list": "ap",
+    "table.include.list": "ap.ap_users,ap.ap_contracts,ap.ap_claims,ap.ap_payments",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "plugin.name": "pgoutput",
+    "slot.name": "slot_ap",
+    "publication.name": "dbz_publication",
+    "publication.autocreate.mode": "disabled",
+    "tombstones.on.delete": "false",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false"
+  }
+}

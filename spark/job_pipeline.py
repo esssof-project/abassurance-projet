@@ -1,5 +1,8 @@
-"""Job Spark : lecture Kafka -> data cleaning -> matrice de doublons ->
-UUID client global -> Data Lake HDFS (Parquet) + Datamart Postgres (tables gold)."""
+"""Job Spark BATCH (demonstration du data flow du Bloc 1) :
+lecture des topics du producer -> data cleaning -> matrice de doublons ->
+UUID client global -> Data Lake HDFS (Parquet).
+NB : en mode temps reel, c'est streaming_pipeline.py (Debezium CDC) qui
+ecrit dans HDFS ; ce job demontre le socle batch + Hadoop."""
 
 from pyspark.sql import SparkSession, functions as F
 from pyspark.sql.window import Window
@@ -7,8 +10,6 @@ from pyspark.sql.types import (StructType, StructField, StringType, DoubleType)
 
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
-PG_URL = "jdbc:postgresql://postgres:5432/datamart"
-PG_PROPS = {"user": "admin", "password": "Admin123!", "driver": "org.postgresql.Driver"}
 
 SCHEMAS = {
     "topic-clients": StructType([
@@ -43,22 +44,14 @@ def read_topic(spark, topic):
         .select("d.*"))
 
 
-def to_pg(df, table):
-    df.write.jdbc(url=PG_URL, table=table, mode="overwrite", properties=PG_PROPS)
-
-
 def main():
-    spark = (SparkSession.builder.appName("AbAssurance-Pipeline")
+    spark = (SparkSession.builder.appName("AbAssurance-Pipeline-Batch")
         .config("spark.jars.packages",
-                "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,"
-                "org.postgresql:postgresql:42.7.2")
+                "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1")
         .getOrCreate())
     spark.sparkContext.setLogLevel("WARN")
 
     clients = read_topic(spark, "topic-clients")
-    contrats = read_topic(spark, "topic-contrats")
-    sinistres = read_topic(spark, "topic-sinistres")
-    paiements = read_topic(spark, "topic-paiements")
 
     # --- Data cleaning : trim, dedoublonnage intra-source, normalisation CP ---
     clients = (clients.dropDuplicates(["source", "id_source"])
@@ -74,10 +67,8 @@ def main():
         .filter(F.col("email_pseudo").isNotNull())
         .withColumnRenamed("id_source", "id_ap"))
     doublons = ab.join(ap, on=["email_pseudo"], how="inner") \
-                 .select("id_ab", "id_ap",
-                         F.col("nom_ab").alias("nom") if "nom_ab" in ab.columns else "nom",
-                         "prenom", "code_postal")
-    to_pg(doublons, "gold_doublons")
+                 .select("id_ab", "id_ap", "nom", "prenom", "code_postal")
+    doublons.write.mode("overwrite").parquet(HDFS + "/datalake/gold/doublons")
 
     # --- Client consolide 360 avec UUID global (bloc 2 : UUIDCLIENTGLOBAL) ---
     w = Window.partitionBy("email_pseudo").orderBy("source")
@@ -85,27 +76,8 @@ def main():
         .withColumn("rn", F.row_number().over(w)).filter("rn=1").drop("rn"))
     clients_360.write.mode("overwrite").parquet(HDFS + "/datalake/gold/clients_360")
 
-    # --- STATISTIQUES ---
-    repart_clients = clients.groupBy("source", "code_postal") \
-        .count().withColumnRenamed("count", "nb_clients")
-    to_pg(repart_clients, "gold_repartition_clients")
-
-    stats_contrats = contrats.groupBy("source", "type_assurance", "statut") \
-        .agg(F.count("*").alias("nb_contrats"),
-             F.sum("prime_annuelle").alias("total_primes"))
-    to_pg(stats_contrats, "gold_stats_contrats")
-
-    stats_sinistres = sinistres.groupBy("source", "statut") \
-        .agg(F.count("*").alias("nb_sinistres"),
-             F.sum("montant_estime").alias("montant_total"))
-    to_pg(stats_sinistres, "gold_stats_sinistres")
-
-    stats_financieres = paiements.groupBy("source", "mode_paiement") \
-        .agg(F.count("*").alias("nb_paiements"),
-             F.sum("montant").alias("ca_total"))
-    to_pg(stats_financieres, "gold_stats_financieres")
-
-    print("Pipeline termine : HDFS (Data Lake) + Datamart Postgres alimentes.")
+    print("Job batch termine : Data Lake HDFS alimente "
+          "(doublons + clients_360 au format Parquet).")
     spark.stop()
 
 
