@@ -2,7 +2,7 @@
 
 Architecture : bases sources AbAssurance (schema AB_*) + AssurePlus (schema AP_*)
 -> Producer (Talend-like) -> Kafka -> Spark -> Hadoop HDFS (Data Lake) +
-Postgres (Datamart) -> Metabase (HTTPS via Caddy).
+-> Dataviz (HTTPS via Caddy).
 
 ## Bases sources (version demo legere)
 Pour la demo, les bases sources Oracle et SQL Server de l'enonce sont simulees
