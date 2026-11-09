@@ -18,6 +18,8 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pylint
+        # Install project dependencies for import checking
+        pip install psycopg2-binary kafka-python pandas
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        pylint --rcfile=.pylintrc $(git ls-files '*.py')

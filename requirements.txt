@@ -1,0 +1,13 @@
+# Core dependencies
+psycopg2-binary>=2.9.0
+kafka-python>=2.0.0
+
+# Testing dependencies
+pandas>=2.0.0
+pytest>=7.0.0
+
+# Optional: Spark (heavy, install only if needed)
+# pyspark>=3.5.0
+
+# Dev dependencies
+pylint>=3.0.0
