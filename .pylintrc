@@ -6,9 +6,11 @@ disable=
     C0114,  # missing-module-docstring
     C0115,  # missing-class-docstring
     C0116,  # missing-function-docstring
+    C0413,  # wrong-import-position (sys.path manipulation in tests)
     C0415,  # import-outside-toplevel (lazy loading is intentional in producer.py)
+    E0401,  # import-error (pyspark not always available)
     R0903,  # too-few-public-methods
-    
+
 [FORMAT]
 max-line-length=120
 
@@ -16,6 +18,3 @@ max-line-length=120
 ignore-comments=yes
 ignore-docstrings=yes
 ignore-imports=yes
-
-[TYPECHECK]
-ignore-missing-imports=yes
