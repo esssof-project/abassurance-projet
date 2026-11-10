@@ -1,12 +1,10 @@
 # AbAssurance Big Data Pipeline — Bloc 3
 
-<<<<<<< HEAD
 Architecture : bases sources AbAssurance (schema AB_*) + AssurePlus (schema AP_*)
 -> Producer (Talend-like) -> Kafka -> Spark -> Hadoop HDFS (Data Lake) +
 -> Dataviz (HTTPS via Caddy).
 =======
 Architecture demandee (BDD -> Talend -> Kafka -> Talend/Spark -> Hadoop -> Dataviz) :
->>>>>>> 0df17ab (new project with dataviz)
 
   TEMPS REEL : BDD sources -> Debezium CDC (temps reel, equivalent open source
   de Talend/GoldenGate) -> Kafka -> Spark Streaming -> Hadoop HDFS (Parquet)
