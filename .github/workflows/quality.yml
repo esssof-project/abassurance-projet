@@ -1,0 +1,34 @@
+name: Qualite de code
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Tests unitaires + coverage
+        run: |
+          pip install -r tests/requirements.txt
+          pytest tests/ --cov=producer --cov=tests --cov-report=xml
+      - name: Analyse statique (ruff)
+        run: |
+          pip install ruff
+          ruff check producer/ spark/ dataviz/ tests/
+      - name: Securite (bandit)
+        run: |
+          pip install bandit
+          bandit -r producer/ spark/ dataviz/ -ll
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
