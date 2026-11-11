@@ -18,7 +18,7 @@ jobs:
       - name: Tests unitaires + coverage
         run: |
           pip install -r tests/requirements.txt
-          pytest tests/ --cov=producer --cov=tests --cov-report=xml
+          pytest tests/ --cov=producer --cov-report=xml
       - name: Analyse statique (ruff)
         run: |
           pip install ruff
