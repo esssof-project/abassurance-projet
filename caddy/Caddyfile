@@ -1,8 +1,8 @@
-dashboard.abassurance.local {
+ec2-15-236-126-88.eu-west-3.compute.amazonaws.com {
     tls internal
     reverse_proxy dataviz:8501
 }
 
-http://dashboard.abassurance.local {
-    redir https://dashboard.abassurance.local{uri}
+http://ec2-15-236-126-88.eu-west-3.compute.amazonaws.com {
+    redir https://ec2-15-236-126-88.eu-west-3.compute.amazonaws.com{uri}
 }
