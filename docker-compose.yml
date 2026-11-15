@@ -14,7 +14,7 @@ services:
     environment:
       POSTGRES_DB: abassurance
       POSTGRES_USER: demo
-      POSTGRES_PASSWORD: Demo123!
+      POSTGRES_PASSWORD:
     volumes:
       - ./oracle-init:/docker-entrypoint-initdb.d
       - pgab_data:/var/lib/postgresql/data
@@ -31,7 +31,7 @@ services:
     environment:
       POSTGRES_DB: assureplus
       POSTGRES_USER: demo
-      POSTGRES_PASSWORD: Demo123!
+      POSTGRES_PASSWORD:
     volumes:
       - ./sqlserver-init:/docker-entrypoint-initdb.d
       - pgap_data:/var/lib/postgresql/data
@@ -208,7 +208,7 @@ services:
       AP_DB_HOST: db-assureplus
       AP_DB_NAME: assureplus
       DB_USER: demo
-      DB_PASSWORD: Demo123!
+      DB_PASSWORD:
     depends_on:
       kafka:
         condition: service_healthy

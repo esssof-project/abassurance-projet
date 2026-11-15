@@ -115,18 +115,18 @@ def main():
     class AbFactory:
         @staticmethod
         def connect():
-            return psycopg2.connect(host=os.getenv("AB_DB_HOST", "db-abassur"),
-                                     dbname=os.getenv("AB_DB_NAME", "abassurance"),
-                                     user=os.getenv("DB_USER", "demo"),
-                                     password=os.getenv("DB_PASSWORD", "Demo123!"))
+            return psycopg2.connect(host=os.getenv("AB_DB_HOST"),
+                                     dbname=os.getenv("AB_DB_NAME"),
+                                     user=os.getenv("DB_USER"),
+                                     password=os.getenv("DB_PASSWORD"))
 
     class ApFactory:
         @staticmethod
         def connect():
-            return psycopg2.connect(host=os.getenv("AP_DB_HOST", "db-assureplus"),
-                                     dbname=os.getenv("AP_DB_NAME", "assureplus"),
-                                     user=os.getenv("DB_USER", "demo"),
-                                     password=os.getenv("DB_PASSWORD", "Demo123!"))
+            return psycopg2.connect(host=os.getenv("AP_DB_HOST"),
+                                     dbname=os.getenv("AP_DB_NAME"),
+                                     user=os.getenv("DB_USER"),
+                                     password=os.getenv("DB_PASSWORD"))
 
     messages = list(extract_abassur(AbFactory)) + list(extract_assureplus(ApFactory))
     for topic, msg in messages:
