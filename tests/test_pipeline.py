@@ -1,17 +1,31 @@
-"""Tests pour la logique de pipeline (doublons, déduplication) avec Spark.
+"""Tests pour la logique de pipeline (doublons, déduplication).
 
-Ces tests utilisent PySpark pour tester les vraies fonctions du pipeline.
+Ces tests utilisent PySpark si disponible, sinon ils sont ignorés.
 """
 
 import pytest
-from pyspark.sql import SparkSession, Row
-from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, StringType
+from unittest.mock import MagicMock
+
+# Vérifie si pyspark est disponible
+try:
+    from pyspark.sql import SparkSession, Row
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, StructField, StringType
+    PYSPARK_AVAILABLE = True
+except ImportError:
+    PYSPARK_AVAILABLE = False
+
+
+# Marqueur pour ignorer les tests si pyspark n'est pas disponible
+pytestmark = pytest.mark.skipif(not PYSPARK_AVAILABLE, reason="pyspark not installed")
 
 
 @pytest.fixture(scope="session")
 def spark_session():
     """Crée une session Spark pour les tests."""
+    if not PYSPARK_AVAILABLE:
+        pytest.skip("pyspark not available")
+    
     spark = (SparkSession.builder
             .master("local[2]")
             .appName("test-pipeline")
@@ -22,7 +36,7 @@ def spark_session():
 
 
 def build_doublons_spark(clients_df):
-    """Logique de détection de doublons avec Spark (même logique que job_pipeline.py)."""
+    """Logique de détection de doublons avec Spark."""
     # Filtrer les emails NULL
     df = clients_df.filter(F.col("email_pseudo").isNotNull())
     
@@ -82,7 +96,7 @@ def test_pas_de_faux_doublon(spark_session):
 
 
 def test_bug_null_email(spark_session):
-    """BUG CORRIGE : un email NULL chez les deux assureurs ne doit pas produire de faux doublon."""
+    """BUG CORRIGÉ : un email NULL chez les deux assureurs ne doit pas produire de faux doublon."""
     schema = StructType([
         StructField("source", StringType(), True),
         StructField("id_source", StringType(), True),

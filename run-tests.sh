@@ -2,7 +2,7 @@
 set -e
 echo "=== Tests unitaires avec couverture (DoD Bloc 3 : >= 70%) ==="
 docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install -q -r tests/requirements.txt && \
+  "pip install -q -r tests/requirements.txt && pip install -q pyspark==3.5.1 && \
    pytest tests/ --cov=producer --cov=spark --cov=dataviz --cov-report=term-missing --cov-report=xml -v"
 
 echo ""

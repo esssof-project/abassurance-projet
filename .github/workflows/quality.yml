@@ -18,7 +18,8 @@ jobs:
       - name: Tests unitaires + coverage
         run: |
           pip install -r tests/requirements.txt
-          pytest tests/ --cov=producer --cov-report=xml
+          pip install pyspark==3.5.1
+          pytest tests/ --cov=producer --cov=spark --cov=dataviz --cov-report=xml
       - name: Analyse statique (ruff)
         run: |
           pip install ruff
