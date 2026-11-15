@@ -204,17 +204,42 @@ def build_clients(spark):
 
 
 def build_doublons(clients):
-    """Matrice de doublons inter-assureurs (meme email pseudonymise)."""
+    """Matrice de doublons inter-assureurs (meme nom, prenom, date_naissance, code_postal)."""
     if clients is None:
         return None
-    ab = clients.filter((F.col("source") == "ABASSURANCE") & F.col("email_pseudo").isNotNull())
-    ap = clients.filter((F.col("source") == "ASSUREPLUS") & F.col("email_pseudo").isNotNull()) \
-                .withColumnRenamed("id_source", "id_ap")
-    m = ab.join(ap, "email_pseudo")
-    return m.select(F.col("id_source").alias("id_ab"), F.col("id_ap"),
-                    F.col("nom"), F.col("prenom"), F.col("code_postal"))
-
-
+    
+    # Creer une cle de deduplication basee sur nom, prenom, date_naissance, code_postal
+    def dedup_key(df):
+        return df.withColumn(
+            "dedup_key",
+            F.sha2(
+                F.concat_ws(
+                    "|",
+                    F.coalesce(F.lower(F.trim(F.col("nom"))), F.lit("")),
+                    F.coalesce(F.lower(F.trim(F.col("prenom"))), F.lit("")),
+                    F.coalesce(F.col("date_naissance"), F.lit("")),
+                    F.coalesce(F.col("code_postal"), F.lit(""))
+                ),
+                256
+            )
+        )
+    
+    ab = clients.filter(F.col("source") == "ABASSURANCE")
+    ap = clients.filter(F.col("source") == "ASSUREPLUS").withColumnRenamed("id_source", "id_ap")
+    
+    ab_with_key = dedup_key(ab)
+    ap_with_key = dedup_key(ap)
+    
+    m = ab_with_key.join(ap_with_key, "dedup_key")
+    
+    return m.select(
+        F.col("id_source").alias("id_ab"), 
+        F.col("id_ap"),
+        F.col("nom"), 
+        F.col("prenom"), 
+        F.col("date_naissance"),
+        F.col("code_postal")
+    ).distinct()
 def build_contrats(spark):
     ab = bronze(spark, "dbab_ab_ab_contrat")
     ap = bronze(spark, "dbap_ap_ap_contracts")
