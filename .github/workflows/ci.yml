@@ -10,9 +10,11 @@ jobs:
   test:
     name: Tests Unitaires + Couverture
     runs-on: ubuntu-latest
+    container:
+      image: apache/spark:3.5.1-java17-python3
+    
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:

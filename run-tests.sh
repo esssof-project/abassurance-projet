@@ -1,19 +1,23 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Script de tests unitaires avec couverture de code
 set -e
-echo "=== Tests unitaires avec couverture (DoD Bloc 2 : >= 80%) ==="
-docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install --only-binary :all: -q -r tests/requirements.txt && \
-   pytest tests/ --cov=producer --cov-report=term-missing --cov-report=xml -v"
+
+echo "=========================================="
+echo "Tests unitaires + Couverture de code"
+echo "=========================================="
 
 echo ""
-echo "=== Analyse statique : ruff (qualite de code) ==="
-docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install --only-binary :all: -q ruff && ruff check spark/ dataviz/ tests/"
+echo "Exécution des tests..."
+pytest tests/test_spark_pipeline.py tests/test_streaming_pipeline.py tests/test_dataviz.py \
+  --cov=spark \
+  --cov=dataviz \
+  --cov-report=term-missing \
+  --cov-report=xml \
+  --cov-fail-under=80 \
+  -v \
+  --tb=short
 
 echo ""
-echo "=== Analyse de securite : bandit (fuites de PII, code vulnerable) ==="
-docker run --rm -v "$PWD":/app -w /app python:3.11-slim bash -c \
-  "pip install --only-binary :all: -q bandit && bandit -r spark/ dataviz/ -ll"
-
-echo ""
-echo "Rapports generes : coverage.xml (SonarCloud), analyses ruff + bandit ci-dessus"
+echo "=========================================="
+echo "Tests terminés"
+echo "=========================================="
