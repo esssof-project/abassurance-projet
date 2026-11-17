@@ -1,3 +1,5 @@
-pytest==8.2.0
-pytest-cov==5.0.0
-pandas==2.2.2
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-spark>=0.6.0
+psycopg2-binary>=2.9.9
+kafka-python>=2.0.2
