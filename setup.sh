@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 set -e
+# Charger les variables d'environnement depuis .env
+if [ -f .env ]; then
+  echo "Chargement des variables depuis .env..."
+  export $(grep -v '^#' .env | xargs)
+else
+  echo "⚠️  Fichier .env introuvable. Utilisation des valeurs par défaut."
+fi
+
+# Créer un dossier temporaire pour les fichiers JSON avec variables injectées
+mkdir -p /tmp/connect_configs
+
+# Remplacer les variables dans les fichiers JSON avant enregistrement
+for file in connect/*.json; do
+  if [ -f "$file" ]; then
+    filename=$(basename "$file")
+    envsubst < "$file" > "/tmp/connect_configs/$filename"
+  fi
+done
 
 echo "==============================================="
 echo "  AbAssurance Big Data - Deploiement automatique"

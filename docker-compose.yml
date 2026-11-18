@@ -1,15 +1,9 @@
 services:
 
-  # ==========================================================
-  # BASES SOURCES SIMULEES (version LEGERE pour la demo)
-  # En production : Oracle (AbAssurance) / SQL Server (AssurePlus).
-  # Pour la demo : 2 instances PostgreSQL alpines (~90 Mo, ~30 Mo RAM)
-  # respectant les schemas de l'enonce (AB_* / AP_*).
-  # wal_level=logical : indispensable pour la capture CDC (Debezium).
-  # ==========================================================
   db-abassur:
     image: postgres:16-alpine
     container_name: db-abassur
+    env_file: .env  # Charge .env dans le conteneur
     command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: abassurance
@@ -17,9 +11,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./oracle-init:/docker-entrypoint-initdb.d
+      - ./.env:/docker-entrypoint-initdb.d/.env  # Copie .env dans le conteneur
       - pgab_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo -d abassurance"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d abassurance"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -27,6 +22,7 @@ services:
   db-assureplus:
     image: postgres:16-alpine
     container_name: db-assureplus
+    env_file: .env  # Charge .env dans le conteneur
     command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: assureplus
@@ -34,9 +30,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./sqlserver-init:/docker-entrypoint-initdb.d
+      - ./.env:/docker-entrypoint-initdb.d/.env  # Copie .env dans le conteneur
       - pgap_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo -d assureplus"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d assureplus"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -78,6 +75,7 @@ services:
   kafka-connect:
     image: debezium/connect:2.7.0.Final
     container_name: kafka-connect
+    env_file: .env
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: "1"
