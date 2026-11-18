@@ -1,26 +1,15 @@
 # AbAssurance Big Data Pipeline — Bloc 3
 
-Architecture : bases sources AbAssurance (schema AB_*) + AssurePlus (schema AP_*)
--> Producer (Talend-like) -> Kafka -> Spark -> Hadoop HDFS (Data Lake) +
--> Dataviz (HTTPS via Caddy).
-=============================
+Architecture :
 
-Architecture demandee (BDD -> Talend -> Kafka -> Talend/Spark -> Hadoop -> Dataviz) :
-
-  TEMPS REEL : BDD sources -> Debezium CDC (temps reel, equivalent open source
-  de Talend/GoldenGate) -> Kafka -> Spark Streaming -> Hadoop HDFS (Parquet)
-  -> Dataviz Python (Streamlit + Plotly, lecture WebHDFS, auto-refresh 10 s).
-
-  BATCH (demonstration Bloc 1) : BDD sources -> producer Talend-like -> Kafka
-  -> Spark batch -> HDFS (/datalake/gold : doublons + clients_360 en Parquet).
+ BDD sources -> Debezium CDC (temps reel, equivalent open source de Talend/GoldenGate) -> Kafka -> Spark Streaming -> Hadoop HDFS (Parquet) -> Dataviz Python (Streamlit + Plotly, lecture WebHDFS, auto-refresh 10 s).
 
 ## Demarrage
 
     ./setup.sh          # deploiement complet + CDC temps reel actif
-    ./run-pipeline.sh   # (optionnel) demo du mode batch -> HDFS gold
     ./run-tests.sh      # tests unitaires + coverage + ruff + bandit
     ./verify.sh         # smoke test : chaine complete + propagation temps reel
-    ./seed-demo.sh      # (demo soutenance) 1000 clients/assureur + ~100 doublons
+    ./seed-demo.sh      # ajout de 1000 clients/assureur + ~100 doublons à travers des requetes insert
 
 ## Temps reel sans redemarrage
 
@@ -29,15 +18,6 @@ en Parquet dans HDFS. Modifiez une ligne dans une base source : Debezium
 publie l'evenement dans Kafka, Spark Streaming l'ecrit dans HDFS (~5 s), et
 le Dataviz (auto-refresh 10 s) montre la nouvelle valeur ~15 s plus tard.
 Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
-
-## Bases sources (version demo legere)
-
-Les bases Oracle et SQL Server de l'enonce sont simulees par 2 PostgreSQL
-alpines (~90 Mo) reproduisant les schemas AB_* et AP_*. Le CDC utilise la
-replication logique PostgreSQL (wal_level=logical) + Debezium, equivalent
-open source et gratuit de GoldenGate / SQL Server CDC. En production, seuls
-les 2 services de bases et les 2 connecteurs changent : le reste de la chaine
-(Kafka, Spark, HDFS, Dataviz) reste strictement identique.
 
 ## Convention de branches Git
 
@@ -58,4 +38,3 @@ les 2 services de bases et les 2 connecteurs changent : le reste de la chaine
 
 - En local : `./run-tests.sh` (pytest+coverage, ruff, bandit).
 - Sur le repo : GitHub Actions + SonarCloud (gratuit en repo public).
-  Definir le secret SONAR_TOKEN dans les parametres du repo GitHub.

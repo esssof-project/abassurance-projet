@@ -1,1 +1,37 @@
-*__pycache__*
+# Ignorer les fichiers sensibles et temporaires
+.env
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Fichiers de configuration sensibles
+secrets.properties
+*.jks
+*.keystore
+
+# Fichiers IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Fichiers Docker temporaires
+docker-compose.override.yml
+
+# Fichiers de logs
+*.log
+logs/
+
+# Fichiers temporaires
+/tmp/
+*.tmp
+
+# Fichiers de build
+build/
+dist/
+*.egg-info/

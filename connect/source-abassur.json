@@ -5,7 +5,7 @@
     "database.hostname": "db-abassur",
     "database.port": "5432",
     "database.user": "debezium",
-    "database.password": "Debez123!",
+    "database.password": "${DEBEZIUM_DB_PASSWORD}",
     "database.dbname": "abassurance",
     "topic.prefix": "dbab",
     "schema.include.list": "ab",

@@ -1,3 +1,6 @@
 pytest==8.2.0
-pytest-cov==5.0.0
-pandas==2.2.2
+pytest-cov==4.1.0
+kafka-python-ng==2.2.3
+psycopg2-binary==2.9.9
+hdfs==2.7.0
+pyarrow==15.0.0
