@@ -1,6 +1,3 @@
-# Dépendances pour les tests
 pytest
 pytest-cov
-kafka-python-ng
-psycopg2-binary
-hdfs
+pyspark
