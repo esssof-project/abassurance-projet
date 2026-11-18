@@ -50,28 +50,14 @@ until curl -s http://localhost:8083/connector-plugins 2>/dev/null | grep -q Post
   echo -n "."; sleep 3
 done; echo " OK"
 
-echo "[5/7] Enregistrement des connecteurs CDC (Debezium)"
-register() {
-  if curl -s http://localhost:8083/connectors | grep -q "\"$1\""; then
-    echo "  $1 : deja enregistre"
-    return 0
+# Enregistrer les connecteurs
+echo "[5/7] Enregistrement des connecteurs CDC (Debezium)..."
+for file in /tmp/connect_configs/*.json; do
+  if [ -f "$file" ]; then
+    echo "  Enregistrement de $(basename "$file")..."
+    curl -X POST -H "Content-Type: application/json" --data @"$file" http://localhost:8083/connectors
   fi
-  for attempt in 1 2 3 4 5; do
-    RESP=$(curl -s -X POST -H 'Content-Type: application/json' \
-      -d @"$2" http://localhost:8083/connectors)
-    if echo "$RESP" | grep -q "error_code"; then
-      echo "  $1 : tentative $attempt/5 en echec : $RESP"
-      sleep 10
-    else
-      echo "  $1 : enregistre (snapshot initial + CDC temps reel)"
-      return 0
-    fi
-  done
-  echo "  $1 : ECHEC d'enregistrement apres 5 tentatives"
-  exit 1
-}
-register source-abassur    connect/source-abassur.json
-register source-assureplus connect/source-assureplus.json
+done
 
 # Verification : les connecteurs doivent passer en RUNNING (snapshot lance)
 echo "  Attente de l'etat RUNNING des connecteurs..."
