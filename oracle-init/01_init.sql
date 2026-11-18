@@ -54,3 +54,12 @@ INSERT INTO AB_PAIEMENT VALUES (9001, 'AB-P0001', TO_DATE('2024-03-25','YYYY-MM-
 INSERT INTO AB_PAIEMENT VALUES (9002, 'AB-P0002', TO_DATE('2024-07-01','YYYY-MM-DD'), 420.50, 'PRELEVEMENT');
 
 
+
+-- Donner les permissions nécessaires pour Debezium
+GRANT rds_superuser TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA ab TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO demo;
+GRANT USAGE ON SCHEMA ab TO demo;
+
+-- Créer la publication pour le CDC
+CREATE PUBLICATION dbz_publication FOR ALL TABLES;

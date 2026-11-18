@@ -11,7 +11,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./oracle-init:/docker-entrypoint-initdb.d
-      - ./.env:/docker-entrypoint-initdb.d/.env  # Copie .env dans le conteneur
       - pgab_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d abassurance"]
@@ -30,7 +29,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./sqlserver-init:/docker-entrypoint-initdb.d
-      - ./.env:/docker-entrypoint-initdb.d/.env  # Copie .env dans le conteneur
       - pgap_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d assureplus"]
