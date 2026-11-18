@@ -55,11 +55,12 @@ INSERT INTO AB_PAIEMENT VALUES (9002, 'AB-P0002', TO_DATE('2024-07-01','YYYY-MM-
 
 
 
--- Donner les permissions nécessaires pour Debezium
-GRANT rds_superuser TO demo;
-GRANT SELECT ON ALL TABLES IN SCHEMA ab TO demo;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO demo;
+-- Utilisateur de replication pour le CDC (demo)
+-- NB PostgreSQL 15+ : creer une publication exige CREATE sur la BASE
 GRANT USAGE ON SCHEMA ab TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA ab TO demo;
+GRANT CREATE ON DATABASE abassurance TO demo;
 
--- Créer la publication pour le CDC
-CREATE PUBLICATION dbz_publication FOR ALL TABLES;
+-- Publication creee par le PROPRIETAIRE des tables (le role demo
+-- n'a pas le droit de creer une publication lui-meme, mode disabled cote connector)
+CREATE PUBLICATION dbz_publication FOR TABLE ab.ab_client, ab.ab_contrat, ab.ab_sinistre, ab.ab_paiement;
