@@ -13,7 +13,7 @@ echo "=========================================="
 pip install -q pytest pytest-cov pyspark hdfs
 
 # Exécuter les tests avec couverture
-pytest tests/test_streaming_pipeline_hdfs.py \
+pytest tests/test_streaming_pipeline.py \
   --cov=spark \
   --cov=tests \
   --cov-report=term-missing \

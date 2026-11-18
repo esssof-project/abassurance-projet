@@ -16,6 +16,11 @@ from spark.streaming_pipeline import (
     AFTER,
 )
 
+def test_hdfs_configuration(self):
+    """Vérifie que la configuration HDFS est correcte."""
+    from spark.streaming_pipeline import HDFS
+    assert HDFS == "hdfs://namenode:9000", f"HDFS doit être 'hdfs://namenode:9000', mais est '{HDFS}'"
+
 class TestBronzeWithHDFS:
     """Tests pour la fonction bronze avec données HDFS réelles."""
 
