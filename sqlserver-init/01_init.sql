@@ -30,10 +30,10 @@ INSERT INTO AP_PAYMENTS (AP_CONTRACT_REF,AP_PAYMENT_DATETIME,AP_AMOUNT_PAID,AP_P
 
 -- Utilisateur de replication pour le CDC (demo)
 -- NB PostgreSQL 15+ : creer une publication exige CREATE sur la BASE
-GRANT USAGE ON SCHEMA ab TO demo;
-GRANT SELECT ON ALL TABLES IN SCHEMA ab TO demo;
-GRANT CREATE ON DATABASE abassurance TO demo;
+GRANT USAGE ON SCHEMA ap TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA ap TO demo;
+GRANT CREATE ON DATABASE assureplus TO demo;
 
 -- Publication creee par le PROPRIETAIRE des tables (le role demo
 -- n'a pas le droit de creer une publication lui-meme, mode disabled cote connector)
-CREATE PUBLICATION dbz_publication FOR TABLE ab.ab_client, ab.ab_contrat, ab.ab_sinistre, ab.ab_paiement;
+CREATE PUBLICATION dbz_publication FOR TABLE ap.ap_users, ap.ap_contracts, ap.ap_claims, ap.ap_payments;
