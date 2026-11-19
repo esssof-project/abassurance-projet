@@ -2,29 +2,19 @@
 import pytest
 from pyspark.sql import functions as F
 
-from spark.streaming_pipeline import (
-    bronze,
-    build_clients,
-    build_contrats,
-    build_doublons,
-    build_paiements,
-    build_sinistres,
-    epoch_days_str,
-    epoch_us_str,
-    sha_pseudo,
-)
-
 
 def test_hdfs_configuration():
     """Vérifie que la configuration HDFS est correcte."""
     from spark.streaming_pipeline import HDFS
     assert HDFS == "hdfs://namenode:9000", f"HDFS doit être 'hdfs://namenode:9000', mais est '{HDFS}'"
 
+
 class TestBronzeWithHDFS:
     """Tests pour la fonction bronze avec données HDFS réelles."""
 
     def test_bronze_ab_client(self, spark_session):
         """Teste la lecture des clients AbAssurance depuis HDFS."""
+        from spark.streaming_pipeline import bronze
         df = bronze(spark_session, "dbab_ab_ab_client")
         if df is not None:
             assert df.count() > 0
@@ -35,6 +25,7 @@ class TestBronzeWithHDFS:
 
     def test_bronze_ap_users(self, spark_session):
         """Teste la lecture des utilisateurs AssurePlus depuis HDFS."""
+        from spark.streaming_pipeline import bronze
         df = bronze(spark_session, "dbap_ap_ap_users")
         if df is not None:
             assert df.count() > 0
@@ -44,25 +35,24 @@ class TestBronzeWithHDFS:
             pytest.skip("Aucune donnée AssurePlus disponible dans HDFS")
 
 
-
 class TestBuildClientsWithHDFS:
     """Tests pour build_clients avec données HDFS réelles."""
 
     def test_build_clients_with_real_data(self, spark_session):
         """Teste build_clients avec les données réelles d'HDFS."""
+        from spark.streaming_pipeline import build_clients
         result = build_clients(spark_session)
         if result is not None:
             assert result.count() > 0
             assert "source" in result.columns
             assert "nom" in result.columns
             assert "prenom" in result.columns
-            # Vérifie que la clé de déduplication est présente (si votre code l'ajoute)
-            # assert "clé_déduplication" in result.columns
         else:
             pytest.skip("Aucune donnée disponible pour build_clients")
 
     def test_build_clients_columns(self, spark_session):
         """Teste les colonnes du résultat de build_clients."""
+        from spark.streaming_pipeline import build_clients
         result = build_clients(spark_session)
         if result is not None:
             expected_columns = {"source", "id_source", "nom", "prenom", "date_naissance",
@@ -77,6 +67,7 @@ class TestBuildDoublonsWithHDFS:
 
     def test_build_doublons_with_real_data(self, spark_session):
         """Teste build_doublons avec les données réelles d'HDFS."""
+        from spark.streaming_pipeline import build_clients, build_doublons
         clients = build_clients(spark_session)
         if clients is not None and clients.count() > 0:
             result = build_doublons(clients)
@@ -97,6 +88,7 @@ class TestBuildContratsWithHDFS:
 
     def test_build_contrats_with_real_data(self, spark_session):
         """Teste build_contrats avec les données réelles d'HDFS."""
+        from spark.streaming_pipeline import build_contrats
         result = build_contrats(spark_session)
         if result is not None:
             assert result.count() >= 0  # Peut être 0 si aucune donnée
@@ -113,6 +105,7 @@ class TestBuildSinistresWithHDFS:
 
     def test_build_sinistres_with_real_data(self, spark_session):
         """Teste build_sinistres avec les données réelles d'HDFS."""
+        from spark.streaming_pipeline import build_sinistres
         result = build_sinistres(spark_session)
         if result is not None:
             assert result.count() >= 0
@@ -128,6 +121,7 @@ class TestBuildPaiementsWithHDFS:
 
     def test_build_paiements_with_real_data(self, spark_session):
         """Teste build_paiements avec les données réelles d'HDFS."""
+        from spark.streaming_pipeline import build_paiements
         result = build_paiements(spark_session)
         if result is not None:
             assert result.count() >= 0
@@ -143,6 +137,7 @@ class TestEpochConversionsWithHDFS:
 
     def test_epoch_days_str_with_real_data(self, spark_session):
         """Teste epoch_days_str avec des données réelles."""
+        from spark.streaming_pipeline import bronze, epoch_days_str
         df = bronze(spark_session, "dbab_ab_ab_client")
         if df is not None and "ab_date_naissance" in df.columns:
             result = df.withColumn("date_naissance", epoch_days_str("ab_date_naissance")).collect()
@@ -154,6 +149,7 @@ class TestEpochConversionsWithHDFS:
 
     def test_epoch_us_str_with_real_data(self, spark_session):
         """Teste epoch_us_str avec des données réelles."""
+        from spark.streaming_pipeline import bronze, epoch_us_str
         df = bronze(spark_session, "dbab_ab_ab_sinistre")
         if df is not None and "ab_date_sinistre" in df.columns:
             result = df.withColumn("date_sinistre", epoch_us_str("ab_date_sinistre")).collect()
@@ -169,6 +165,7 @@ class TestShaPseudoWithHDFS:
 
     def test_sha_pseudo_with_real_emails(self, spark_session):
         """Teste sha_pseudo avec des emails réels."""
+        from spark.streaming_pipeline import bronze, sha_pseudo
         df = bronze(spark_session, "dbab_ab_ab_client")
         if df is not None and "ab_email" in df.columns:
             result = df.withColumn("email_pseudo", sha_pseudo(F.col("ab_email"))).collect()
