@@ -53,13 +53,14 @@ INSERT INTO AB_SINISTRE VALUES (5001, 'AB-P0001', TO_TIMESTAMP('2024-03-20 09:30
 INSERT INTO AB_PAIEMENT VALUES (9001, 'AB-P0001', TO_DATE('2024-03-25','YYYY-MM-DD'), 1500.00, 'VIREMENT');
 INSERT INTO AB_PAIEMENT VALUES (9002, 'AB-P0002', TO_DATE('2024-07-01','YYYY-MM-DD'), 420.50, 'PRELEVEMENT');
 
--- Utilisateur de replication pour le CDC (Debezium)
--- NB PostgreSQL 15+ : creer une publication exige CREATE sur la BASE
-CREATE ROLE debezium WITH LOGIN REPLICATION PASSWORD 'Debez123!';
-GRANT USAGE ON SCHEMA ab TO debezium;
-GRANT SELECT ON ALL TABLES IN SCHEMA ab TO debezium;
-GRANT CREATE ON DATABASE abassurance TO debezium;
 
--- Publication creee par le PROPRIETAIRE des tables (le role debezium
+
+-- Utilisateur de replication pour le CDC (demo)
+-- NB PostgreSQL 15+ : creer une publication exige CREATE sur la BASE
+GRANT USAGE ON SCHEMA ab TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA ab TO demo;
+GRANT CREATE ON DATABASE abassurance TO demo;
+
+-- Publication creee par le PROPRIETAIRE des tables (le role demo
 -- n'a pas le droit de creer une publication lui-meme, mode disabled cote connector)
 CREATE PUBLICATION dbz_publication FOR TABLE ab.ab_client, ab.ab_contrat, ab.ab_sinistre, ab.ab_paiement;

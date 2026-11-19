@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 set -e
+# Charger les variables d'environnement depuis .env
+if [[ -f .env ]]; then
+  echo "Chargement des variables depuis .env..."
+  export $(grep -v '^#' .env | xargs)
+else
+  echo "⚠️  Fichier .env introuvable. Utilisation des valeurs par défaut."
+fi
+
+# Créer un dossier temporaire pour les fichiers JSON avec variables injectées
+mkdir -p /tmp/connect_configs
+
+# Remplacer les variables dans les fichiers JSON avant enregistrement
+for file in connect/*.json; do
+  if [[ -f "$file" ]]; then
+    filename=$(basename "$file")
+    envsubst < "$file" > "/tmp/connect_configs/$filename"
+  fi
+done
 
 echo "==============================================="
 echo "  AbAssurance Big Data - Deploiement automatique"
@@ -32,28 +50,14 @@ until curl -s http://localhost:8083/connector-plugins 2>/dev/null | grep -q Post
   echo -n "."; sleep 3
 done; echo " OK"
 
-echo "[5/7] Enregistrement des connecteurs CDC (Debezium)"
-register() {
-  if curl -s http://localhost:8083/connectors | grep -q "\"$1\""; then
-    echo "  $1 : deja enregistre"
-    return 0
+# Enregistrer les connecteurs
+echo "[5/7] Enregistrement des connecteurs CDC (Debezium)..."
+for file in /tmp/connect_configs/*.json; do
+  if [[ -f "$file" ]]; then
+    echo "  Enregistrement de $(basename "$file")..."
+    curl -X POST -H "Content-Type: application/json" --data @"$file" http://localhost:8083/connectors
   fi
-  for attempt in 1 2 3 4 5; do
-    RESP=$(curl -s -X POST -H 'Content-Type: application/json' \
-      -d @"$2" http://localhost:8083/connectors)
-    if echo "$RESP" | grep -q "error_code"; then
-      echo "  $1 : tentative $attempt/5 en echec : $RESP"
-      sleep 10
-    else
-      echo "  $1 : enregistre (snapshot initial + CDC temps reel)"
-      return 0
-    fi
-  done
-  echo "  $1 : ECHEC d'enregistrement apres 5 tentatives"
-  exit 1
-}
-register source-abassur    connect/source-abassur.json
-register source-assureplus connect/source-assureplus.json
+done
 
 # Verification : les connecteurs doivent passer en RUNNING (snapshot lance)
 echo "  Attente de l'etat RUNNING des connecteurs..."
@@ -88,8 +92,7 @@ done; echo " OK"
 echo ""
 echo "==============================================="
 echo "  Plateforme prete :"
-echo "  Dataviz (dashboards) : https://dashboard.abassurance.local"
-echo "    (si non fait : echo '127.0.0.1 dashboard.abassurance.local' | sudo tee -a /etc/hosts)"
+echo "  Dataviz (dashboards) : https://ec2-15-236-126-88.eu-west-3.compute.amazonaws.com"
 echo "    (certificat TLS interne : accepter l'avertissement du navigateur)"
 echo "  Kafka Connect : http://localhost:8083/connectors"
 echo "  HDFS UI : http://localhost:9870 | Spark UI : http://localhost:8080"

@@ -1,25 +1,19 @@
 services:
 
-  # =========================================================
-  # BASES SOURCES SIMULEES (version LEGERE pour la demo)
-  # En production : Oracle (AbAssurance) / SQL Server (AssurePlus).
-  # Pour la demo : 2 instances PostgreSQL alpines (~90 Mo, ~30 Mo RAM)
-  # respectant les schemas de l'enonce (AB_* / AP_*).
-  # wal_level=logical : indispensable pour la capture CDC (Debezium).
-  # =========================================================
   db-abassur:
     image: postgres:16-alpine
     container_name: db-abassur
+    env_file: .env  # Charge .env dans le conteneur
     command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: abassurance
-      POSTGRES_USER: demo
-      POSTGRES_PASSWORD: Demo123!
+      POSTGRES_USER: ${DB_USER:-demo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./oracle-init:/docker-entrypoint-initdb.d
       - pgab_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo -d abassurance"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d abassurance"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -27,23 +21,24 @@ services:
   db-assureplus:
     image: postgres:16-alpine
     container_name: db-assureplus
+    env_file: .env  # Charge .env dans le conteneur
     command: ["postgres","-c","wal_level=logical","-c","max_replication_slots=10","-c","max_wal_senders=10"]
     environment:
       POSTGRES_DB: assureplus
-      POSTGRES_USER: demo
-      POSTGRES_PASSWORD: Demo123!
+      POSTGRES_USER: ${DB_USER:-demo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ./sqlserver-init:/docker-entrypoint-initdb.d
       - pgap_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U demo -d assureplus"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-demo} -d assureplus"]
       interval: 5s
       timeout: 5s
       retries: 20
 
-  # =========================================================
+  # ==========================================================
   # BUS DE DONNEES (Apache Kafka, mode KRaft, sans Zookeeper)
-  # =========================================================
+  # ==========================================================
   kafka:
     image: apache/kafka:3.7.2
     container_name: kafka
@@ -71,13 +66,14 @@ services:
       retries: 30
       start_period: 20s
 
-  # =========================================================
+  # ==========================================================
   # CDC TEMPS REEL (Debezium / Kafka Connect)
   # Capture chaque INSERT/UPDATE/DELETE des bases sources -> Kafka
-  # =========================================================
+  # ==========================================================
   kafka-connect:
     image: debezium/connect:2.7.0.Final
     container_name: kafka-connect
+    env_file: .env
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: "1"
@@ -94,9 +90,9 @@ services:
       kafka:
         condition: service_healthy
 
-  # =========================================================
+  # ==========================================================
   # DATA LAKE HADOOP (HDFS) — stockage terminal de l'architecture
-  # =========================================================
+  # ==========================================================
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
@@ -117,9 +113,9 @@ services:
     volumes:
       - datanode_data:/hadoop/dfs/data
 
-  # =========================================================
+  # ==========================================================
   # MOTEUR DE TRAITEMENT (Apache Spark cluster, mode batch)
-  # =========================================================
+  # ==========================================================
   spark-master:
     image: apache/spark:3.5.1-java17-python3
     container_name: spark-master
@@ -148,11 +144,11 @@ services:
     volumes:
       - ./spark:/opt/spark-apps
 
-  # =========================================================
+  # ==========================================================
   # SPARK STREAMING (tourne en continu : consomme le CDC Kafka et
   # ecrit les evenements en Parquet dans HDFS — pas de base
   # intermediaire : Hadoop -> Dataviz, conforme a l'architecture)
-  # =========================================================
+  # ==========================================================
   spark-streaming:
     image: apache/spark:3.5.1-java17-python3
     container_name: spark-streaming
@@ -166,22 +162,22 @@ services:
     volumes:
       - ./spark:/opt/spark-apps
 
-  # =========================================================
+  # ==========================================================
   # DATAVIZ (Streamlit + Plotly : dashboards Python qui lisent
   # le Data Lake HDFS via WebHDFS). Pas de port expose directement :
   # l'acces se fait UNIQUEMENT en HTTPS via Caddy.)
-  # =========================================================
+  # ==========================================================
   dataviz:
     build: ./dataviz
     container_name: dataviz
     depends_on:
       - namenode
 
-  # =========================================================
+  # ==========================================================
   # REVERSE PROXY HTTPS (Caddy, TLS interne + redirection HTTP->HTTPS)
   # Le Dataviz est accessible uniquement via
   # https://dashboard.abassurance.local (entree /etc/hosts requise)
-  # =========================================================
+  # ==========================================================
   caddy:
     image: caddy:2
     container_name: caddy
@@ -194,28 +190,6 @@ services:
       - caddy_config:/config
     depends_on:
       - dataviz
-
-  # =========================================================
-  # PRODUCER "TALEND-LIKE" batch (demo du mode batch initial)
-  # =========================================================
-  producer:
-    build: ./producer
-    container_name: producer
-    environment:
-      KAFKA_BOOTSTRAP: kafka:9092
-      AB_DB_HOST: db-abassur
-      AB_DB_NAME: abassurance
-      AP_DB_HOST: db-assureplus
-      AP_DB_NAME: assureplus
-      DB_USER: demo
-      DB_PASSWORD: Demo123!
-    depends_on:
-      kafka:
-        condition: service_healthy
-      db-abassur:
-        condition: service_healthy
-      db-assureplus:
-        condition: service_healthy
 
 volumes:
   pgab_data: {}
