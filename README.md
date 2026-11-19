@@ -38,3 +38,5 @@ Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
 
 - En local : `./run-tests.sh` (Test des fonctions reel spark et hdfs).
 - Sur le repo : GitHub Actions + SonarCloud (test code avec ruff).
+
+**prérequie** :  merci de renommer le fichier .env.exemple par .env dans le serveur et rensegnier le mot de passe avant de lancer le build des contenaines  docker
