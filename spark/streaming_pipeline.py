@@ -232,7 +232,7 @@ def start_hdfs_writer(spark, topic):
         .format("kafka")
         .option("kafka.bootstrap.servers", KAFKA)
         .option("subscribe", topic)
-        .option("startingOffsets", "earliest")
+        .option("startingOffsets", "latest")
         .option("failOnDataLoss", "false")
         .load()
         .select(
