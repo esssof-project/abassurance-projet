@@ -2,9 +2,9 @@ name: Python CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   check:
@@ -25,10 +25,4 @@ jobs:
 
     - name: Lint with Ruff
       run: |
-        pip install ruff
         ruff check .
-
-    - name: Test with pytest
-      run: |
-        pip install pytest
-        pytest

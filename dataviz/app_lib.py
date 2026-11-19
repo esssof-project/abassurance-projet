@@ -3,11 +3,12 @@ consolidation des evenements CDC en etat courant, calcul des indicateurs.
 Utilisee a la fois par l'application Streamlit (app.py) et par le smoke
 test CLI (check.py)."""
 
-import io
 import hashlib
-import requests
-import pandas as pd
+import io
 from datetime import date, datetime, timedelta
+
+import pandas as pd
+import requests
 
 NAMENODE = "http://namenode:9870"
 BASE = NAMENODE + "/webhdfs/v1"
@@ -44,7 +45,8 @@ def read_topic(name):
             continue  # fichier devenu vide entre le listing et la lecture
         try:
             frames.append(pq.read_table(io.BytesIO(r.content)).to_pandas())
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            print(f"Fichier ignore (partiel/corrompu) : {e}")
             continue  # fichier partiel/corrompu en cours d'ecriture : on l'ignore
     if not frames:
         return pd.DataFrame()
@@ -110,7 +112,8 @@ def read_gold(name):
     import pyarrow.parquet as pq
     try:
         files = list_dir(f"{GOLD}/{name}")
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        print(f"Erreur list_dir gold/{name}: {e}")
         return None
     frames = []
     for f in files:
@@ -118,7 +121,8 @@ def read_gold(name):
             r = requests.get(f"{BASE}{GOLD}/{name}/{f}", params={"op": "OPEN"}, timeout=10)
             if r.content:
                 frames.append(pq.read_table(io.BytesIO(r.content)).to_pandas())
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            print(f"Fichier gold/{name}/{f} ignore: {e}")
             continue
     if not frames:
         return None

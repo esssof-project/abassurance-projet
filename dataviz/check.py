@@ -2,6 +2,7 @@
 Usage : python check.py clients | doublons | statut <SOURCE> <ID>
 (ex: python check.py statut ABASSURANCE 1 -> statut courant du client 1)"""
 import sys
+
 import app_lib as lib
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else "doublons"

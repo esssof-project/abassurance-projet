@@ -4,9 +4,10 @@ UUID client global -> Data Lake HDFS (Parquet).
 NB : en mode temps reel, c'est streaming_pipeline.py (Debezium CDC) qui
 ecrit dans HDFS ; ce job demontre le socle batch + Hadoop."""
 
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 from pyspark.sql.window import Window
-from pyspark.sql.types import (StructType, StructField, StringType, DoubleType)
 
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
