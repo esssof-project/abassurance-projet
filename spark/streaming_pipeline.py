@@ -339,7 +339,16 @@ def epoch_days_str(colname):
         "yyyy-MM-dd"
     )
 
+def epoch_us_str(colname):
+    """Convertit les microsecondes Unix en YYYY-MM-DD HH:mm:ss."""
 
+    return F.date_format(
+        (
+            F.col(colname).cast("double") / 1_000_000
+        ).cast("timestamp"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
+    
 def epoch_ms_str(colname):
     """Convertit les millisecondes depuis 1970 en timestamp."""
 
