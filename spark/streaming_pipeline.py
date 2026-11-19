@@ -1,6 +1,8 @@
 """Spark Structured Streaming : CDC Debezium (Kafka) -> HDFS (Parquet)."""
 
-from pyspark.sql import SparkSession, functions as F, types as T
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
@@ -140,7 +142,8 @@ def bronze(spark, name):
     """Lit toute la zone bronze d'un topic (None si le dossier est absent)."""
     try:
         return spark.read.parquet(f"{HDFS}/datalake/cdc/{name}")
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        print(f"Erreur lecture bronze/{name}: {e}")
         return None
 
 
@@ -332,7 +335,7 @@ def recompute_gold(spark):
                 if d is not None:
                     d.write.mode("overwrite").parquet(f"{GOLD}/doublons")
                     written.append("doublons")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # fichier bronze partiel en cours d'ecriture : retry au batch suivant
             print(f"[gold] {name} reporte au prochain batch : {e}")
     print(f"[gold] tables a jour : {', '.join(written) if written else 'aucune'}")
@@ -344,7 +347,7 @@ def start_gold(spark):
     def recompute(batch_df, batch_id):
         try:
             recompute_gold(spark)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"[gold] recompute echoue : {e}")
     q = (spark.readStream.format("kafka")
          .option("kafka.bootstrap.servers", KAFKA)

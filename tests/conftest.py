@@ -2,6 +2,9 @@
 import pytest
 from pyspark.sql import SparkSession
 
+from spark.streaming_pipeline import bronze
+
+
 @pytest.fixture(scope="session")
 def hdfs_accessible():
     """Vérifie que HDFS est accessible."""
@@ -10,7 +13,7 @@ def hdfs_accessible():
         client = InsecureClient("http://namenode:9870", user_name="hadoop")
         client.list("/")
         yield True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         pytest.skip(f"HDFS non accessible: {e}")
         
 def test_bronze_ab_client(self, spark_session, hdfs_accessible):

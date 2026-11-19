@@ -3,11 +3,10 @@ lus directement du Data Lake HDFS (architecture Hadoop -> Dataviz).
 Auto-rafraichissement 10 s : les modifications des bases sources
 (CDC Debezium -> Kafka -> Spark Streaming -> HDFS) apparaissent seules."""
 
+import app_lib as lib
+import plotly.express as px
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-import plotly.express as px
-
-import app_lib as lib
 
 st.set_page_config(page_title="AbAssurance Analytics", page_icon=":bar_chart:", layout="wide")
 st_autorefresh(interval=10000, key="cdc")  # temps reel : relecture HDFS toutes les 10 s

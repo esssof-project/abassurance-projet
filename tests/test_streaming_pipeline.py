@@ -1,21 +1,19 @@
 """Tests pour spark/streaming_pipeline.py avec données HDFS réelles."""
 import pytest
-from pyspark.sql import Row
 from pyspark.sql import functions as F
+
 from spark.streaming_pipeline import (
-    sha_pseudo,
+    bronze,
+    build_clients,
+    build_contrats,
+    build_doublons,
+    build_paiements,
+    build_sinistres,
     epoch_days_str,
     epoch_us_str,
-    build_clients,
-    build_doublons,
-    build_contrats,
-    build_sinistres,
-    build_paiements,
-    latest,
-    bronze,
-    union_or_none,
-    AFTER,
+    sha_pseudo,
 )
+
 
 def test_hdfs_configuration():
     """Vérifie que la configuration HDFS est correcte."""
