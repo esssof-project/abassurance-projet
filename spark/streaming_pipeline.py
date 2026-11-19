@@ -94,9 +94,12 @@ def clean_numeric(col):
 
 
 def clean_date(col):
-    """Normalise plusieurs formats de date en YYYY-MM-DD."""
-
+    """
+    Normalise les dates et timestamps en YYYY-MM-DD.
+    Les valeurs invalides ou nulles retournent None.
+    """
     c = F.col(col) if isinstance(col, str) else col
+    value = F.trim(c.cast("string"))
 
     date_formats = [
         "yyyy-MM-dd",
@@ -113,7 +116,7 @@ def clean_date(col):
     ]
 
     parsed_dates = [
-        F.to_date(c, fmt)
+        F.try_to_timestamp(value, F.lit(fmt))
         for fmt in date_formats
     ]
 
