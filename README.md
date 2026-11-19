@@ -34,7 +34,7 @@ Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
 - Kafka Connect : http://localhost:8083/connectors
 - HDFS UI : http://localhost:9870 | Spark UI : http://localhost:8080
 
-## Qualite de code (Dossier 3)
+## Qualite de code
 
-- En local : `./run-tests.sh` (pytest+coverage, ruff, bandit).
-- Sur le repo : GitHub Actions + SonarCloud (gratuit en repo public).
+- En local : `./run-tests.sh` (Test des fonctions reel spark et hdfs).
+- Sur le repo : GitHub Actions + SonarCloud (test code avec ruff).
