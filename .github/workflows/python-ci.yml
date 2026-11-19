@@ -28,7 +28,11 @@ jobs:
     - name: Lint with Ruff
       run: |
         ruff check .
-
+        
+    - name: Test with coverage
+      run: |
+        pytest --cov=./ --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
+    
     - name: SonarCloud Scan
       uses: SonarSource/sonarcloud-github-action@master
       env:
