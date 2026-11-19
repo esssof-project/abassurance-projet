@@ -1,0 +1,14 @@
+# Development dependencies
+ruff
+pytest
+pytest-cov
+
+# Spark dependencies
+pyspark
+
+# HTTP client for HDFS
+requests
+pyarrow
+
+# For HDFS client in tests
+hdfs
