@@ -28,13 +28,12 @@ INSERT INTO AP_CLAIMS VALUES
 INSERT INTO AP_PAYMENTS (AP_CONTRACT_REF,AP_PAYMENT_DATETIME,AP_AMOUNT_PAID,AP_PAYMENT_CHANNEL,AP_TRANSACTION_STATUS)
  VALUES ('AP-C0001','2024-06-20',3200.00,'VIREMENT','VALIDE');
 
--- Utilisateur de replication pour le CDC (Debezium)
+-- Utilisateur de replication pour le CDC (demo)
 -- NB PostgreSQL 15+ : creer une publication exige CREATE sur la BASE
-CREATE ROLE debezium WITH LOGIN REPLICATION PASSWORD 'Debez123!';
-GRANT USAGE ON SCHEMA ap TO debezium;
-GRANT SELECT ON ALL TABLES IN SCHEMA ap TO debezium;
-GRANT CREATE ON DATABASE assureplus TO debezium;
+GRANT USAGE ON SCHEMA ap TO demo;
+GRANT SELECT ON ALL TABLES IN SCHEMA ap TO demo;
+GRANT CREATE ON DATABASE assureplus TO demo;
 
--- Publication creee par le PROPRIETAIRE des tables (le role debezium
+-- Publication creee par le PROPRIETAIRE des tables (le role demo
 -- n'a pas le droit de creer une publication lui-meme, mode disabled cote connector)
 CREATE PUBLICATION dbz_publication FOR TABLE ap.ap_users, ap.ap_contracts, ap.ap_claims, ap.ap_payments;

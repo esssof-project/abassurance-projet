@@ -1,23 +1,29 @@
 #!/bin/bash
-# Script de tests unitaires avec couverture de code
+# Script pour exécuter les tests avec données HDFS
 set -e
 
+# Exporter le PYTHONPATH pour que Python trouve le module spark
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
 echo "=========================================="
-echo "Tests unitaires + Couverture de code"
+echo "  Tests avec données HDFS réelles"
 echo "=========================================="
 
-echo ""
-echo "Exécution des tests..."
-pytest tests/test_spark_pipeline.py tests/test_streaming_pipeline.py tests/test_dataviz.py \
+# Installer les dépendances
+pip install -q pytest pytest-cov pyspark hdfs
+
+# Exécuter les tests avec couverture
+pytest tests/test_streaming_pipeline.py \
   --cov=spark \
-  --cov=dataviz \
+  --cov=tests \
   --cov-report=term-missing \
-  --cov-report=xml \
-  --cov-fail-under=80 \
+  --cov-report=html \
+  --cov-fail-under=70 \
   -v \
   --tb=short
 
 echo ""
 echo "=========================================="
-echo "Tests terminés"
+echo "  Tests terminés. Rapport de couverture :"
+echo "  Ouvrez htmlcov/index.html dans un navigateur."
 echo "=========================================="

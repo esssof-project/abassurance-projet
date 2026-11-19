@@ -5,7 +5,7 @@
     "database.hostname": "db-assureplus",
     "database.port": "5432",
     "database.user": "demo",
-    "database.password": "${DEBEZIUM_DB_PASSWORD}",
+    "database.password": "${DB_PASSWORD}",
     "database.dbname": "assureplus",
     "topic.prefix": "dbap",
     "schema.include.list": "ap",
