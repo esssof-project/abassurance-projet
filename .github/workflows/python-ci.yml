@@ -30,15 +30,15 @@ jobs:
         ruff check .
 
     - name: SonarCloud Scan
-      uses: SonarSource/sonarcloud-github-action@master
+      uses: SonarSource/sonarcloud-github-action
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
         projectBaseDir: .
         args: >
-          -Dsonar.organization=abassurance-project
-          -Dsonar.projectKey=abassurance-project_fix
+          -Dsonar.organization=Pipeline-ESS
+          # -Dsonar.projectKey=abassurance-project
           -Dsonar.python.coverage.reportPaths=coverage.xml
           -Dsonar.python.xunit.reportPath=test-results.xml
           -Dsonar.sources=.
