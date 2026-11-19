@@ -202,13 +202,13 @@ def build_clients(spark):
                          F.col("ap_customer_status").alias("statut")))
     return union_or_none(ab_df, ap_df)
 
-
 def build_doublons(clients):
-    """Matrice de doublons inter-assureurs (meme nom, prenom, date_naissance, code_postal)."""
+    """Matrice de doublons inter-assureurs
+    (même nom, prénom, date_naissance, code_postal).
+    """
     if clients is None:
         return None
-    
-    # Creer une cle de deduplication basee sur nom, prenom, date_naissance, code_postal
+
     def dedup_key(df):
         return df.withColumn(
             "dedup_key",
@@ -217,28 +217,41 @@ def build_doublons(clients):
                     "|",
                     F.coalesce(F.lower(F.trim(F.col("nom"))), F.lit("")),
                     F.coalesce(F.lower(F.trim(F.col("prenom"))), F.lit("")),
-                    F.coalesce(F.col("date_naissance"), F.lit("")),
-                    F.coalesce(F.col("code_postal"), F.lit(""))
+                    F.coalesce(F.col("date_naissance").cast("string"), F.lit("")),
+                    F.coalesce(F.col("code_postal").cast("string"), F.lit(""))
                 ),
                 256
             )
         )
-    
-    ab = clients.filter(F.col("source") == "ABASSURANCE")
-    ap = clients.filter(F.col("source") == "ASSUREPLUS").withColumnRenamed("id_source", "id_ap")
-    
-    ab_with_key = dedup_key(ab)
-    ap_with_key = dedup_key(ap)
-    
-    m = ab_with_key.join(ap_with_key, "dedup_key")
-    
+
+    ab = clients.filter(
+        F.col("source") == "ABASSURANCE"
+    )
+
+    ap = clients.filter(
+        F.col("source") == "ASSUREPLUS"
+    )
+
+    ab_with_key = dedup_key(ab).alias("ab")
+    ap_with_key = (
+        dedup_key(ap)
+        .withColumnRenamed("id_source", "id_ap")
+        .alias("ap")
+    )
+
+    m = ab_with_key.join(
+        ap_with_key,
+        F.col("ab.dedup_key") == F.col("ap.dedup_key"),
+        "inner"
+    )
+
     return m.select(
-        F.col("id_source").alias("id_ab"), 
-        F.col("id_ap"),
-        F.col("nom"), 
-        F.col("prenom"), 
-        F.col("date_naissance"),
-        F.col("code_postal")
+        F.col("ab.id_source").alias("id_ab"),
+        F.col("ap.id_ap"),
+        F.col("ab.nom").alias("nom"),
+        F.col("ab.prenom").alias("prenom"),
+        F.col("ab.date_naissance").alias("date_naissance"),
+        F.col("ab.code_postal").alias("code_postal")
     ).distinct()
 def build_contrats(spark):
     ab = bronze(spark, "dbab_ab_ab_contrat")
