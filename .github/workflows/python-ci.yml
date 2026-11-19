@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Required for SonarCloud to detect changes
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -26,3 +28,26 @@ jobs:
     - name: Lint with Ruff
       run: |
         ruff check .
+
+    - name: Test with pytest and coverage
+      run: |
+        pytest --cov=./ --cov-report=xml --cov-report=html -v
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      with:
+        projectBaseDir: .
+        args: >
+          -Dsonar.organization=abassurance-project
+          -Dsonar.projectKey=abassurance-project_fix
+          -Dsonar.python.coverage.reportPaths=coverage.xml
+          -Dsonar.python.xunit.reportPath=test-results.xml
+          -Dsonar.sources=.
+          -Dsonar.exclusions=**/tests/**,**/__pycache__/**,**/venv/**,**/.venv/**
+          -Dsonar.test.inclusions=**/tests/**/*.py
+          -Dsonar.coverage.exclusions=**/tests/**,**/conftest.py
+          -Dsonar.python.version=3.11
+          -Dsonar.coverage.minimum=80

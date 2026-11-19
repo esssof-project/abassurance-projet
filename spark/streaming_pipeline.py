@@ -7,6 +7,128 @@ from pyspark.sql import types as T
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
 
+
+# =============================================================================
+# FONCTIONS DE NETTOYAGE D'ENCODAGE (Bloc 3 - Oracle <-> SQL Server)
+# =============================================================================
+
+def clean_string(col, source="oracle"):
+    """Nettoie les caractères spéciaux et normalise l'encodage.
+    
+    Problème : Oracle utilise souvent UTF-8 ou WE8MSWIN1252, SQL Server utilise UTF-8.
+    Certains caractères spéciaux (é, è, ç, etc.) peuvent être mal encodés.
+    
+    Solution :
+    - Supprime les caractères de contrôle non imprimables
+    - Normalise les espaces et caractères spéciaux
+    - Convertit en UTF-8 valide
+    
+    Args:
+        col: Colonne Spark à nettoyer
+        source: Source des données ('oracle' ou 'sqlserver') pour traitement spécifique
+    
+    Returns:
+        Colonne nettoyée
+    """
+    # Supprimer les caractères de contrôle (ASCII 0-31, 127-159)
+    cleaned = F.regexp_replace(col, r'[\x00-\x1F\x7F-\x9F]', '')
+    
+    # Normaliser les espaces multiples
+    cleaned = F.regexp_replace(cleaned, r'\s+', ' ')
+    
+    # Supprimer les espaces en début/fin
+    cleaned = F.trim(cleaned)
+    
+    # Remplacer les caractères problématiques courants entre Oracle et SQL Server
+    # Exemples de caractères mal encodés : , , etc.
+    cleaned = F.regexp_replace(cleaned, r'[\u001A\u001B\u001C\u001D\u001E\u001F]', '')
+    
+    # Remplacer les apostrophes intelligentes et guillemets par des versions standard
+    cleaned = F.regexp_replace(cleaned, r'[\u2018\u2019]', "'")
+    cleaned = F.regexp_replace(cleaned, r'[\u201C\u201D]', "-")
+    cleaned = F.regexp_replace(cleaned, r'[\u201E\u201F]', '"')
+    
+    # Traiter les caractères spécifiques Oracle (WE8MSWIN1252)
+    if source == "oracle":
+        # Remplacer les caractères Windows-1252 mal interprétés
+        cleaned = F.regexp_replace(cleaned, r'\u0080', 'E')  # € -> E (simplification)
+        cleaned = F.regexp_replace(cleaned, r'\u0082', '\'')  # ‚ -> '
+        cleaned = F.regexp_replace(cleaned, r'\u0084', '"')  # " -> "
+        cleaned = F.regexp_replace(cleaned, r'\u0085', '...')  # … -> ...
+        cleaned = F.regexp_replace(cleaned, r'\u0086', '"')  # † -> "
+        cleaned = F.regexp_replace(cleaned, r'\u0087', '"')  # ‡ -> "
+        cleaned = F.regexp_replace(cleaned, r'\u0088', '^')  # ^ -> ^
+        cleaned = F.regexp_replace(cleaned, r'\u0089', '%')  # ‰ -> %
+        cleaned = F.regexp_replace(cleaned, r'\u008A', 'S')  # Š -> S
+        cleaned = F.regexp_replace(cleaned, r'\u008B', '<')  # ‹ -> <
+        cleaned = F.regexp_replace(cleaned, r'\u008C', 'OE')  # Œ -> OE
+        cleaned = F.regexp_replace(cleaned, r'\u008E', 'Z')  # Ž -> Z
+        cleaned = F.regexp_replace(cleaned, r'\u0091', '\'')  # ‘ -> '
+        cleaned = F.regexp_replace(cleaned, r'\u0092', '\'')  # ’ -> '
+        cleaned = F.regexp_replace(cleaned, r'\u0093', '"')  # " -> "
+        cleaned = F.regexp_replace(cleaned, r'\u0094', '"')  # " -> "
+        cleaned = F.regexp_replace(cleaned, r'\u0095', '*')  # • -> *
+        cleaned = F.regexp_replace(cleaned, r'\u0096', '-')  # – -> -
+        cleaned = F.regexp_replace(cleaned, r'\u0097', '-')  # — -> -
+        cleaned = F.regexp_replace(cleaned, r'\u0098', '~')  # ˜ -> ~
+        cleaned = F.regexp_replace(cleaned, r'\u0099', 'TM')  # ™ -> TM
+        cleaned = F.regexp_replace(cleaned, r'\u009A', 's')  # š -> s
+        cleaned = F.regexp_replace(cleaned, r'\u009B', '>')  # › -> >
+        cleaned = F.regexp_replace(cleaned, r'\u009C', 'oe')  # œ -> oe
+        cleaned = F.regexp_replace(cleaned, r'\u009E', 'z')  # ž -> z
+        cleaned = F.regexp_replace(cleaned, r'\u009F', 'Y')  # Ÿ -> Y
+    
+    # Remplacer les NULL/NaN par chaîne vide
+    cleaned = F.when(F.col(col).isNull() | (F.length(cleaned) == 0), F.lit('')).otherwise(cleaned)
+    
+    return cleaned
+
+
+def clean_numeric(col):
+    """Nettoie les valeurs numériques (supprime caractères non-numériques).
+    
+    Args:
+        col: Colonne Spark numérique à nettoyer
+        
+    Returns:
+        Colonne numérique nettoyée (0 si invalide)
+    """
+    # Supprimer tous les caractères non-numériques (sauf . et -)
+    cleaned_str = F.regexp_replace(F.col(col).cast("string"), r'[^0-9.-]', '')
+    
+    # Convertir en double, 0.0 si invalide
+    return F.when(F.length(cleaned_str) > 0, F.col(cleaned_str).cast("double")).otherwise(F.lit(0.0))
+
+
+def clean_date(col):
+    """Nettoie et normalise les dates.
+    
+    Args:
+        col: Colonne Spark de date à nettoyer
+        
+    Returns:
+        Colonne date au format ISO (YYYY-MM-DD)
+    """
+    # Essayer plusieurs formats de date
+    date_formats = [
+        "yyyy-MM-dd",
+        "dd/MM/yyyy",
+        "MM/dd/yyyy",
+        "dd-MM-yyyy",
+        "yyyy/MM/dd",
+    ]
+    
+    result = None
+    for fmt in date_formats:
+        try:
+            result = F.to_date(F.col(col), fmt)
+            if result is not None:
+                break
+        except Exception:  # noqa: BLE001, S112
+            continue
+    
+    return F.when(result.isNull(), F.lit(None)).otherwise(F.date_format(result, "yyyy-MM-dd"))
+
 # Schemas "after" des evenements Debezium.
 # NB decimal.handling.mode=double : NUMERIC -> double ;
 #    DATE -> int (jours depuis 1970-01-01), TIMESTAMP -> bigint (millis).
@@ -175,6 +297,12 @@ def union_or_none(a, b):
 
 
 def build_clients(spark):
+    """Clients consolides AB + AP : meme modele unifie que le Dataviz.
+    
+    Nettoyage d encodage applique :
+    - clean_string() sur tous les champs texte (nom, prenom, code_postal, statut)
+    - Gere les problemes d encodage entre Oracle (WE8MSWIN1252) et SQL Server (UTF-8)
+    """
     """Clients consolides AB + AP : meme modele unifie que le Dataviz."""
     ab = bronze(spark, "dbab_ab_ab_client")
     ap = bronze(spark, "dbap_ap_ap_users")
@@ -183,26 +311,26 @@ def build_clients(spark):
         ab_df = (latest(ab, "ab_client_id")
                  .select(F.lit("ABASSURANCE").alias("source"),
                          F.col("ab_client_id").cast("string").alias("id_source"),
-                         F.col("ab_nom").alias("nom"),
-                         F.col("ab_prenom").alias("prenom"),
+                         clean_string(F.col("ab_nom"), "oracle").alias("nom"),
+                         clean_string(F.col("ab_prenom"), "oracle").alias("prenom"),
                          epoch_days_str("ab_date_naissance").alias("date_naissance"),
-                         sha_pseudo(F.col("ab_email")).alias("email_pseudo"),
-                         sha_pseudo(F.col("ab_telephone")).alias("telephone_pseudo"),
-                         F.col("ab_code_postal").alias("code_postal"),
-                         F.col("ab_statut_client").alias("statut")))
+                         sha_pseudo(clean_string(F.col("ab_email"), "oracle")).alias("email_pseudo"),
+                         sha_pseudo(clean_string(F.col("ab_telephone"), "oracle")).alias("telephone_pseudo"),
+                         clean_string(F.col("ab_code_postal"), "oracle").alias("code_postal"),
+                         clean_string(F.col("ab_statut_client"), "oracle").alias("statut")))
     ap_df = None
     if ap is not None:
-        parts = F.split(F.coalesce(F.col("ap_full_name"), F.lit("")), " ")
+        parts = F.split(F.coalesce(clean_string(F.col("ap_full_name"), "sqlserver"), F.lit("")), " ")
         ap_df = (latest(ap, "ap_user_id")
                  .select(F.lit("ASSUREPLUS").alias("source"),
                          F.col("ap_user_id").cast("string").alias("id_source"),
-                         parts.getItem(0).alias("nom"),
-                         F.coalesce(parts.getItem(1), F.lit("")).alias("prenom"),
-                         F.coalesce(F.col("ap_birth_date"), F.lit("")).alias("date_naissance"),
-                         sha_pseudo(F.col("ap_mail_address")).alias("email_pseudo"),
-                         sha_pseudo(F.col("ap_phone_number")).alias("telephone_pseudo"),
-                         F.col("ap_zip_code").alias("code_postal"),
-                         F.col("ap_customer_status").alias("statut")))
+                         clean_string(parts.getItem(0), "sqlserver").alias("nom"),
+                         clean_string(F.coalesce(parts.getItem(1), F.lit("")), "sqlserver").alias("prenom"),
+                         clean_string(F.coalesce(F.col("ap_birth_date"), F.lit("")), "sqlserver").alias("date_naissance"),
+                         sha_pseudo(clean_string(F.col("ap_mail_address"), "sqlserver")).alias("email_pseudo"),
+                         sha_pseudo(clean_string(F.col("ap_phone_number"), "sqlserver")).alias("telephone_pseudo"),
+                         clean_string(F.col("ap_zip_code"), "sqlserver").alias("code_postal"),
+                         clean_string(F.col("ap_customer_status"), "sqlserver").alias("statut")))
     return union_or_none(ab_df, ap_df)
 
 
@@ -243,6 +371,8 @@ def build_doublons(clients):
         F.col("date_naissance"),
         F.col("code_postal")
     ).distinct()
+
+    
 def build_contrats(spark):
     ab = bronze(spark, "dbab_ab_ab_contrat")
     ap = bronze(spark, "dbap_ap_ap_contracts")

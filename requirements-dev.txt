@@ -1,14 +1,21 @@
 # Development dependencies
-ruff
-pytest
-pytest-cov
+ruff>=0.3.0
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.5.0
 
 # Spark dependencies
-pyspark
+pyspark>=3.5.0
 
 # HTTP client for HDFS
-requests
-pyarrow
+requests>=2.31.0
+pyarrow>=14.0.0
 
 # For HDFS client in tests
-hdfs
+hdfs>=2.7.0
+
+# Great Expectations for data validation
+great-expectations>=0.18.0
+
+# SonarCloud scanner (optional, can use GitHub Action instead)
+# sonarqube>=4.0.0

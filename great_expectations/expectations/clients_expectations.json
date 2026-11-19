@@ -1,0 +1,92 @@
+{
+  "data_asset_type": "Dataset",
+  "expectation_suite_name": "clients_data_quality",
+  "expectations": [
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "id_source"
+      },
+      "meta": {
+        "notes": "Vérifie que la colonne id_source existe"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "nom"
+      },
+      "meta": {
+        "notes": "Vérifie que la colonne nom existe"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "prenom"
+      },
+      "meta": {
+        "notes": "Vérifie que la colonne prenom existe"
+      }
+    },
+    {
+      "expectation_type": "expect_column_to_exist",
+      "kwargs": {
+        "column": "source"
+      },
+      "meta": {
+        "notes": "Vérifie que la colonne source existe"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "id_source",
+        "mostly": 0.95
+      },
+      "meta": {
+        "notes": "95% des id_source ne doivent pas être null"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_match_regex",
+      "kwargs": {
+        "column": "source",
+        "regex": "^(ABASSURANCE|ASSUREPLUS)$"
+      },
+      "meta": {
+        "notes": "La source doit être ABASSURANCE ou ASSUREPLUS"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_match_regex",
+      "kwargs": {
+        "column": "nom",
+        "regex": "[\\x00-\\x1F\\x7F-\\x9F]"
+      },
+      "meta": {
+        "notes": "Les noms ne doivent pas contenir de caractères de contrôle (problème d'encodage Oracle/SQL Server)"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_match_regex",
+      "kwargs": {
+        "column": "prenom",
+        "regex": "[\\x00-\\x1F\\x7F-\\x9F]"
+      },
+      "meta": {
+        "notes": "Les prénoms ne doivent pas contenir de caractères de contrôle"
+      }
+    },
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 0,
+        "max_value": 1000000
+      },
+      "meta": {
+        "notes": "Le nombre de clients doit être raisonnable"
+      }
+    }
+  ]
+}
