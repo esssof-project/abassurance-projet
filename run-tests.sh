@@ -1,39 +1,18 @@
-
-#!/bin/bash
-set -e
-
+#!/usr/bin/env bash
+set -euo pipefail
 cd "$(dirname "$0")"
+export PYTHONPATH="$(pwd):${PYTHONPATH:-}"
 
-export PYTHONPATH="$(pwd):${PYTHONPATH}"
-
-echo "======================================"
-echo "Installation des dépendances"
-echo "======================================"
-
-python -m pip install -q pytest pytest-cov pyspark hdfs
-
-echo "======================================"
-echo "Vérification des tests"
-echo "======================================"
-
+# Vérifie d'abord que pytest trouve les tests existants et supplémentaires.
 python -m pytest --collect-only -q tests/
 
-echo "======================================"
-echo "Exécution des tests"
-echo "======================================"
-
-rm -rf htmlcov
-rm -f coverage.xml
-
+# La couverture porte uniquement sur le module Streaming actif.
 python -m pytest tests/ \
-    --cov=spark.streaming_pipeline \
-    --cov-report=term-missing \
-    --cov-report=html \
-    --cov-report=xml \
-    -v \
-    --tb=short
+  --cov=spark.streaming_pipeline \
+  --cov-report=term-missing \
+  --cov-report=html \
+  --cov-report=xml \
+  --cov-branch   -v --tb=short
 
-echo "======================================"
-echo "Tests terminés avec succès"
+echo
 echo "Rapport HTML : htmlcov/index.html"
-echo "======================================"
