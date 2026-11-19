@@ -96,33 +96,31 @@ def clean_numeric(col):
 def clean_date(col):
     """
     Normalise les dates et timestamps en YYYY-MM-DD.
-    Les valeurs invalides ou nulles retournent None.
+    Compatible avec Spark 3.5.1.
     """
     c = F.col(col) if isinstance(col, str) else col
     value = F.trim(c.cast("string"))
 
     date_formats = [
-        "yyyy-MM-dd",
-        "yyyy-MM-dd HH:mm:ss",
         "yyyy-MM-dd HH:mm:ss.SSS",
-        "dd/MM/yyyy",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd",
         "dd/MM/yyyy HH:mm:ss",
-        "MM/dd/yyyy",
+        "dd/MM/yyyy",
         "MM/dd/yyyy HH:mm:ss",
-        "dd-MM-yyyy",
+        "MM/dd/yyyy",
         "dd-MM-yyyy HH:mm:ss",
-        "yyyy/MM/dd",
+        "dd-MM-yyyy",
         "yyyy/MM/dd HH:mm:ss",
+        "yyyy/MM/dd",
     ]
 
-    parsed_dates = [
+    parsed = [
         F.try_to_timestamp(value, F.lit(fmt))
         for fmt in date_formats
     ]
 
-    result = F.coalesce(*parsed_dates)
-
-    return F.date_format(result, "yyyy-MM-dd")
+    return F.date_format(F.coalesce(*parsed), "yyyy-MM-dd")
 
 
 # =============================================================================
