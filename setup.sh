@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 # Charger les variables d'environnement depuis .env
-if [ -f .env ]; then
+if [[ -f .env ]]; then
   echo "Chargement des variables depuis .env..."
   export $(grep -v '^#' .env | xargs)
 else
@@ -13,7 +13,7 @@ mkdir -p /tmp/connect_configs
 
 # Remplacer les variables dans les fichiers JSON avant enregistrement
 for file in connect/*.json; do
-  if [ -f "$file" ]; then
+  if [[ -f "$file" ]]; then
     filename=$(basename "$file")
     envsubst < "$file" > "/tmp/connect_configs/$filename"
   fi
@@ -53,7 +53,7 @@ done; echo " OK"
 # Enregistrer les connecteurs
 echo "[5/7] Enregistrement des connecteurs CDC (Debezium)..."
 for file in /tmp/connect_configs/*.json; do
-  if [ -f "$file" ]; then
+  if [[ -f "$file" ]]; then
     echo "  Enregistrement de $(basename "$file")..."
     curl -X POST -H "Content-Type: application/json" --data @"$file" http://localhost:8083/connectors
   fi
