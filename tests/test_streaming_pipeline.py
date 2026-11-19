@@ -1,6 +1,7 @@
 """Tests pour spark/streaming_pipeline.py avec données HDFS réelles."""
 import pytest
 from pyspark.sql import Row
+from pyspark.sql import functions as F
 from spark.streaming_pipeline import (
     sha_pseudo,
     epoch_days_str,
@@ -16,7 +17,7 @@ from spark.streaming_pipeline import (
     AFTER,
 )
 
-def test_hdfs_configuration(self):
+def test_hdfs_configuration():
     """Vérifie que la configuration HDFS est correcte."""
     from spark.streaming_pipeline import HDFS
     assert HDFS == "hdfs://namenode:9000", f"HDFS doit être 'hdfs://namenode:9000', mais est '{HDFS}'"
