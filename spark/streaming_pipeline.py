@@ -1,115 +1,103 @@
+
 """Spark Structured Streaming : CDC Debezium (Kafka) -> HDFS (Parquet)."""
 
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-from pyspark.sql import types as T
+from pyspark.sql import SparkSession, functions as F, types as T
+
 
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
+GOLD = f"{HDFS}/datalake/gold"
 
 
 # =============================================================================
-# FONCTIONS DE NETTOYAGE D'ENCODAGE (Bloc 3 - Oracle <-> SQL Server)
+# 1. NETTOYAGE DES DONNEES
 # =============================================================================
 
 def clean_string(col, source="oracle"):
-    """Nettoie les caractères spéciaux et normalise l'encodage.
-    
-    Problème : Oracle utilise souvent UTF-8 ou WE8MSWIN1252, SQL Server utilise UTF-8.
-    Certains caractères spéciaux (é, è, ç, etc.) peuvent être mal encodés.
-    
-    Solution :
-    - Supprime les caractères de contrôle non imprimables
-    - Normalise les espaces et caractères spéciaux
-    - Convertit en UTF-8 valide
-    
-    Args:
-        col: Colonne Spark à nettoyer
-        source: Source des données ('oracle' ou 'sqlserver') pour traitement spécifique
-    
-    Returns:
-        Colonne nettoyée
-    """
-    # Supprimer les caractères de contrôle (ASCII 0-31, 127-159)
-    cleaned = F.regexp_replace(col, r'[\x00-\x1F\x7F-\x9F]', '')
-    
-    # Normaliser les espaces multiples
-    cleaned = F.regexp_replace(cleaned, r'\s+', ' ')
-    
-    # Supprimer les espaces en début/fin
-    cleaned = F.trim(cleaned)
-    
-    # Remplacer les caractères problématiques courants entre Oracle et SQL Server
-    # Exemples de caractères mal encodés : , , etc.
-    cleaned = F.regexp_replace(cleaned, r'[\u001A\u001B\u001C\u001D\u001E\u001F]', '')
-    
-    # Remplacer les apostrophes intelligentes et guillemets par des versions standard
+    """Nettoie une colonne Spark et normalise les caractères."""
+
+    c = F.col(col) if isinstance(col, str) else col
+    cleaned = c.cast("string")
+
+    # Normalisation des apostrophes et guillemets.
     cleaned = F.regexp_replace(cleaned, r'[\u2018\u2019]', "'")
-    cleaned = F.regexp_replace(cleaned, r'[\u201C\u201D]', "-")
+    cleaned = F.regexp_replace(cleaned, r'[\u201C\u201D]', '"')
     cleaned = F.regexp_replace(cleaned, r'[\u201E\u201F]', '"')
-    
-    # Traiter les caractères spécifiques Oracle (WE8MSWIN1252)
+
+    # Corrections des caractères Windows-1252 mal décodés.
     if source == "oracle":
-        # Remplacer les caractères Windows-1252 mal interprétés
-        cleaned = F.regexp_replace(cleaned, r'\u0080', 'E')  # € -> E (simplification)
-        cleaned = F.regexp_replace(cleaned, r'\u0082', '\'')  # ‚ -> '
-        cleaned = F.regexp_replace(cleaned, r'\u0084', '"')  # " -> "
-        cleaned = F.regexp_replace(cleaned, r'\u0085', '...')  # … -> ...
-        cleaned = F.regexp_replace(cleaned, r'\u0086', '"')  # † -> "
-        cleaned = F.regexp_replace(cleaned, r'\u0087', '"')  # ‡ -> "
-        cleaned = F.regexp_replace(cleaned, r'\u0088', '^')  # ^ -> ^
-        cleaned = F.regexp_replace(cleaned, r'\u0089', '%')  # ‰ -> %
-        cleaned = F.regexp_replace(cleaned, r'\u008A', 'S')  # Š -> S
-        cleaned = F.regexp_replace(cleaned, r'\u008B', '<')  # ‹ -> <
-        cleaned = F.regexp_replace(cleaned, r'\u008C', 'OE')  # Œ -> OE
-        cleaned = F.regexp_replace(cleaned, r'\u008E', 'Z')  # Ž -> Z
-        cleaned = F.regexp_replace(cleaned, r'\u0091', '\'')  # ‘ -> '
-        cleaned = F.regexp_replace(cleaned, r'\u0092', '\'')  # ’ -> '
-        cleaned = F.regexp_replace(cleaned, r'\u0093', '"')  # " -> "
-        cleaned = F.regexp_replace(cleaned, r'\u0094', '"')  # " -> "
-        cleaned = F.regexp_replace(cleaned, r'\u0095', '*')  # • -> *
-        cleaned = F.regexp_replace(cleaned, r'\u0096', '-')  # – -> -
-        cleaned = F.regexp_replace(cleaned, r'\u0097', '-')  # — -> -
-        cleaned = F.regexp_replace(cleaned, r'\u0098', '~')  # ˜ -> ~
-        cleaned = F.regexp_replace(cleaned, r'\u0099', 'TM')  # ™ -> TM
-        cleaned = F.regexp_replace(cleaned, r'\u009A', 's')  # š -> s
-        cleaned = F.regexp_replace(cleaned, r'\u009B', '>')  # › -> >
-        cleaned = F.regexp_replace(cleaned, r'\u009C', 'oe')  # œ -> oe
-        cleaned = F.regexp_replace(cleaned, r'\u009E', 'z')  # ž -> z
-        cleaned = F.regexp_replace(cleaned, r'\u009F', 'Y')  # Ÿ -> Y
-    
-    # Remplacer les NULL/NaN par chaîne vide
-    cleaned = F.when(F.col(col).isNull() | (F.length(cleaned) == 0), F.lit('')).otherwise(cleaned)
-    
-    return cleaned
+        replacements = [
+            (r'\u0080', 'E'),
+            (r'\u0082', "'"),
+            (r'\u0084', '"'),
+            (r'\u0085', '...'),
+            (r'\u0086', '"'),
+            (r'\u0087', '"'),
+            (r'\u0088', '^'),
+            (r'\u0089', '%'),
+            (r'\u008A', 'S'),
+            (r'\u008B', '<'),
+            (r'\u008C', 'OE'),
+            (r'\u008E', 'Z'),
+            (r'\u0091', "'"),
+            (r'\u0092', "'"),
+            (r'\u0093', '"'),
+            (r'\u0094', '"'),
+            (r'\u0095', '*'),
+            (r'\u0096', '-'),
+            (r'\u0097', '-'),
+            (r'\u0098', '~'),
+            (r'\u0099', 'TM'),
+            (r'\u009A', 's'),
+            (r'\u009B', '>'),
+            (r'\u009C', 'oe'),
+            (r'\u009E', 'z'),
+            (r'\u009F', 'Y'),
+        ]
+
+        for pattern, replacement in replacements:
+            cleaned = F.regexp_replace(
+                cleaned, pattern, replacement
+            )
+
+    # Suppression des caractères de contrôle restants.
+    cleaned = F.regexp_replace(
+        cleaned, r'[\x00-\x1F\x7F-\x9F]', ''
+    )
+
+    # Normalisation des espaces.
+    cleaned = F.regexp_replace(cleaned, r'\s+', ' ')
+    cleaned = F.trim(cleaned)
+
+    return F.when(
+        c.isNull()
+        | (F.lower(cleaned) == "nan")
+        | (F.length(cleaned) == 0),
+        F.lit("")
+    ).otherwise(cleaned)
 
 
 def clean_numeric(col):
-    """Nettoie les valeurs numériques (supprime caractères non-numériques).
-    
-    Args:
-        col: Colonne Spark numérique à nettoyer
-        
-    Returns:
-        Colonne numérique nettoyée (0 si invalide)
-    """
-    # Supprimer tous les caractères non-numériques (sauf . et -)
-    cleaned_str = F.regexp_replace(F.col(col).cast("string"), r'[^0-9.-]', '')
-    
-    # Convertir en double, 0.0 si invalide
-    return F.when(F.length(cleaned_str) > 0, F.col(cleaned_str).cast("double")).otherwise(F.lit(0.0))
+    """Nettoie une colonne numérique et retourne un double."""
+
+    c = F.col(col) if isinstance(col, str) else col
+
+    cleaned_str = F.regexp_replace(
+        c.cast("string"),
+        r'[^0-9.-]',
+        ''
+    )
+
+    numeric_value = cleaned_str.cast("double")
+
+    return F.coalesce(numeric_value, F.lit(0.0))
 
 
 def clean_date(col):
-    """Nettoie et normalise les dates.
-    
-    Args:
-        col: Colonne Spark de date à nettoyer
-        
-    Returns:
-        Colonne date au format ISO (YYYY-MM-DD)
-    """
-    # Essayer plusieurs formats de date
+    """Normalise plusieurs formats de date en YYYY-MM-DD."""
+
+    c = F.col(col) if isinstance(col, str) else col
+
     date_formats = [
         "yyyy-MM-dd",
         "dd/MM/yyyy",
@@ -117,21 +105,21 @@ def clean_date(col):
         "dd-MM-yyyy",
         "yyyy/MM/dd",
     ]
-    
-    result = None
-    for fmt in date_formats:
-        try:
-            result = F.to_date(F.col(col), fmt)
-            if result is not None:
-                break
-        except Exception:  # noqa: BLE001, S112
-            continue
-    
-    return F.when(result.isNull(), F.lit(None)).otherwise(F.date_format(result, "yyyy-MM-dd"))
 
-# Schemas "after" des evenements Debezium.
-# NB decimal.handling.mode=double : NUMERIC -> double ;
-#    DATE -> int (jours depuis 1970-01-01), TIMESTAMP -> bigint (millis).
+    parsed_dates = [
+        F.to_date(c, fmt)
+        for fmt in date_formats
+    ]
+
+    result = F.coalesce(*parsed_dates)
+
+    return F.date_format(result, "yyyy-MM-dd")
+
+
+# =============================================================================
+# 2. SCHEMAS DEBEZIUM
+# =============================================================================
+
 AFTER = {
     "dbab.ab.ab_client": [
         ("ab_client_id", T.IntegerType()),
@@ -143,6 +131,7 @@ AFTER = {
         ("ab_code_postal", T.StringType()),
         ("ab_statut_client", T.StringType()),
     ],
+
     "dbab.ab.ab_contrat": [
         ("ab_policy_number", T.StringType()),
         ("ab_client_id", T.IntegerType()),
@@ -151,6 +140,7 @@ AFTER = {
         ("ab_prime_annuelle", T.DoubleType()),
         ("ab_statut_contrat", T.StringType()),
     ],
+
     "dbab.ab.ab_sinistre": [
         ("ab_claim_id", T.IntegerType()),
         ("ab_policy_number", T.StringType()),
@@ -158,6 +148,7 @@ AFTER = {
         ("ab_montant_estime", T.DoubleType()),
         ("ab_statut_sinistre", T.StringType()),
     ],
+
     "dbab.ab.ab_paiement": [
         ("ab_payment_id", T.IntegerType()),
         ("ab_policy_number", T.StringType()),
@@ -165,6 +156,7 @@ AFTER = {
         ("ab_montant", T.DoubleType()),
         ("ab_mode_paiement", T.StringType()),
     ],
+
     "dbap.ap.ap_users": [
         ("ap_user_id", T.IntegerType()),
         ("ap_full_name", T.StringType()),
@@ -174,6 +166,7 @@ AFTER = {
         ("ap_zip_code", T.StringType()),
         ("ap_customer_status", T.StringType()),
     ],
+
     "dbap.ap.ap_contracts": [
         ("ap_contract_ref", T.StringType()),
         ("ap_user_id", T.IntegerType()),
@@ -182,6 +175,7 @@ AFTER = {
         ("ap_monthly_premium", T.DoubleType()),
         ("ap_contract_state", T.StringType()),
     ],
+
     "dbap.ap.ap_claims": [
         ("ap_sinistre_num", T.IntegerType()),
         ("ap_contract_ref", T.StringType()),
@@ -189,6 +183,7 @@ AFTER = {
         ("ap_estimated_amount", T.DoubleType()),
         ("ap_claim_status", T.StringType()),
     ],
+
     "dbap.ap.ap_payments": [
         ("ap_payment_ref", T.StringType()),
         ("ap_contract_ref", T.StringType()),
@@ -200,7 +195,8 @@ AFTER = {
 
 
 def envelope_schema(after_schema):
-    """Enveloppe Debezium : op + after + before (les autres champs sont ignores)."""
+    """Schéma de l'enveloppe Debezium."""
+
     return T.StructType([
         T.StructField("op", T.StringType()),
         T.StructField("after", after_schema),
@@ -208,306 +204,804 @@ def envelope_schema(after_schema):
     ])
 
 
+# =============================================================================
+# 3. ZONE BRONZE : KAFKA -> HDFS
+# =============================================================================
+
 def start_hdfs_writer(spark, topic):
-    """Demarre un flux Kafka -> HDFS : evenements parses et aplatis en Parquet.
-    Chaque micro-batch ecrit un fichier Parquet dans /datalake/cdc/<topic> ;
-    le Dataviz deduplique ensuite par cle (dernier evenement = etat courant)."""
-    after_schema = T.StructType([T.StructField(n, t) for n, t in AFTER[topic]])
+    """Lit un topic Kafka et écrit les événements en Parquet dans HDFS."""
+
+    after_schema = T.StructType([
+        T.StructField(name, dtype)
+        for name, dtype in AFTER[topic]
+    ])
+
     name = topic.replace(".", "_")
 
-    raw = (spark.readStream.format("kafka")
-           .option("kafka.bootstrap.servers", KAFKA)
-           .option("subscribe", topic)
-           .option("startingOffsets", "earliest")
-           .option("failOnDataLoss", "false")
-           .load()
-           .select(F.col("value").cast("string").alias("v"),
-                   F.col("timestamp").alias("event_ts")))
+    raw = (
+        spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA)
+        .option("subscribe", topic)
+        .option("startingOffsets", "earliest")
+        .option("failOnDataLoss", "false")
+        .load()
+        .select(
+            F.col("value").cast("string").alias("v"),
+            F.col("timestamp").alias("event_ts")
+        )
+    )
 
-    # Deux formats possibles selon la config du worker Kafka Connect :
-    # enveloppe directe {op, after, ...} (schemas.enable=false) ou
-    # wrapper {"schema":..., "payload":{op, after, ...}} (schemas.enable=true).
-    wrapped = F.from_json("v", T.StructType([
-        T.StructField("payload", envelope_schema(after_schema))])).getField("payload")
-    direct = F.from_json("v", envelope_schema(after_schema))
-    parsed = raw.select("event_ts", F.coalesce(wrapped, direct).alias("e"))
+    # Format Debezium avec wrapper payload.
+    wrapped = F.from_json(
+        "v",
+        T.StructType([
+            T.StructField(
+                "payload",
+                envelope_schema(after_schema)
+            )
+        ])
+    ).getField("payload")
 
-    flat = parsed.select("event_ts",
-                         F.col("e.op").alias("op"),
-                         *[F.col(f"e.after.{n}").alias(n) for n, _ in AFTER[topic]])
+    # Format Debezium direct.
+    direct = F.from_json(
+        "v",
+        envelope_schema(after_schema)
+    )
 
-    return (flat.writeStream
-            .format("parquet")
-            .option("path", f"{HDFS}/datalake/cdc/{name}")
-            .option("checkpointLocation", f"/tmp/checkpoints/{name}")
-            .trigger(processingTime="5 seconds")
-            .start())
+    parsed = raw.select(
+        "event_ts",
+        F.coalesce(wrapped, direct).alias("e")
+    )
 
+    flat = parsed.select(
+        "event_ts",
+        F.col("e.op").alias("op"),
+        *[
+            F.col(f"e.after.{name}").alias(name)
+            for name, _ in AFTER[topic]
+        ]
+    )
 
-GOLD = f"{HDFS}/datalake/gold"
+    output_path = f"{HDFS}/datalake/cdc/{name}"
+
+    return (
+        flat.writeStream
+        .queryName(f"bronze_{name}")
+        .format("parquet")
+        .option("path", output_path)
+        .option(
+            "checkpointLocation",
+            f"/tmp/checkpoints/{name}"
+        )
+        .trigger(processingTime="5 seconds")
+        .start()
+    )
 
 
 # =============================================================================
-# ZONE GOLD : consolidation + indicateurs calcules dans Spark.
-# La zone bronze (evenements CDC bruts) reste la source de verite ; la gold
-# est recalculee apres chaque batch CDC et lue telle quelle par le Dataviz
-# (qui retombe sur son calcul bronze si la gold n'existe pas encore).
+# 4. FONCTIONS UTILITAIRES GOLD
 # =============================================================================
 
 def sha_pseudo(col):
-    """Pseudonymisation identique au Dataviz : sha256(lower(trim(v))), NULL si vide."""
-    s = F.trim(F.coalesce(col.cast("string"), F.lit("")))
-    return F.when(F.length(s) > 0, F.sha2(F.lower(s), 256))
+    """Pseudonymisation SHA-256 des données sensibles."""
+
+    s = F.trim(
+        F.coalesce(col.cast("string"), F.lit(""))
+    )
+
+    return F.when(
+        F.length(s) > 0,
+        F.sha2(F.lower(s), 256)
+    )
 
 
 def bronze(spark, name):
-    """Lit toute la zone bronze d'un topic (None si le dossier est absent)."""
+    """Lit un dossier Bronze. Retourne None si absent."""
+
+    path = f"{HDFS}/datalake/cdc/{name}"
+
     try:
-        return spark.read.parquet(f"{HDFS}/datalake/cdc/{name}")
-    except Exception as e:  # noqa: BLE001
-        print(f"Erreur lecture bronze/{name}: {e}")
+        return spark.read.parquet(path)
+
+    except Exception as e:
+        print(f"[bronze] Lecture impossible {path}: {e}")
         return None
 
 
 def latest(df, pk):
-    """Etat courant : dernier evenement par cle primaire."""
+    """Conserve le dernier événement CDC par clé primaire."""
+
     from pyspark.sql.window import Window
-    w = Window.partitionBy(pk).orderBy(F.col("event_ts").desc())
-    return (df.withColumn("_rn", F.row_number().over(w))
-              .filter(F.col("_rn") == 1).drop("_rn", "event_ts", "op"))
+
+    w = Window.partitionBy(pk).orderBy(
+        F.col("event_ts").desc()
+    )
+
+    return (
+        df.withColumn(
+            "_rn",
+            F.row_number().over(w)
+        )
+        .filter(F.col("_rn") == 1)
+        .drop("_rn", "event_ts", "op")
+    )
 
 
 def epoch_days_str(colname):
-    """Jours depuis 1970 (Debezium DATE) -> 'YYYY-MM-DD'."""
+    """Convertit les jours depuis 1970 en YYYY-MM-DD."""
+
     return F.date_format(
-        F.expr(f"date_add(DATE '1970-01-01', CAST({colname} AS INT))"), "yyyy-MM-dd")
+        F.expr(
+            f"date_add(DATE '1970-01-01', "
+            f"CAST({colname} AS INT))"
+        ),
+        "yyyy-MM-dd"
+    )
 
 
-def epoch_us_str(colname):
-    """Microsecondes depuis 1970 (Debezium Timestamp) -> 'YYYY-MM-DD HH:mm:ss'."""
-    return F.date_format((F.col(colname) / 1000000).cast("timestamp"), "yyyy-MM-dd HH:mm:ss")
+def epoch_ms_str(colname):
+    """Convertit les millisecondes depuis 1970 en timestamp."""
+
+    return F.date_format(
+        (
+            F.col(colname).cast("double") / 1000
+        ).cast("timestamp"),
+        "yyyy-MM-dd HH:mm:ss"
+    )
 
 
 def union_or_none(a, b):
+    """Unionne deux DataFrames lorsque disponibles."""
+
     if a is None:
         return b
+
     if b is None:
         return a
+
     return a.unionByName(b)
 
 
+# =============================================================================
+# 5. CONSOLIDATION DES CLIENTS
+# =============================================================================
+
 def build_clients(spark):
-    """Clients consolides AB + AP : meme modele unifie que le Dataviz.
-    
-    Nettoyage d encodage applique :
-    - clean_string() sur tous les champs texte (nom, prenom, code_postal, statut)
-    - Gere les problemes d encodage entre Oracle (WE8MSWIN1252) et SQL Server (UTF-8)
-    """
-    """Clients consolides AB + AP : meme modele unifie que le Dataviz."""
+    """Consolide les clients ABASSURANCE et ASSUREPLUS."""
+
     ab = bronze(spark, "dbab_ab_ab_client")
     ap = bronze(spark, "dbap_ap_ap_users")
+
     ab_df = None
-    if ab is not None:
-        ab_df = (latest(ab, "ab_client_id")
-                 .select(F.lit("ABASSURANCE").alias("source"),
-                         F.col("ab_client_id").cast("string").alias("id_source"),
-                         clean_string(F.col("ab_nom"), "oracle").alias("nom"),
-                         clean_string(F.col("ab_prenom"), "oracle").alias("prenom"),
-                         epoch_days_str("ab_date_naissance").alias("date_naissance"),
-                         sha_pseudo(clean_string(F.col("ab_email"), "oracle")).alias("email_pseudo"),
-                         sha_pseudo(clean_string(F.col("ab_telephone"), "oracle")).alias("telephone_pseudo"),
-                         clean_string(F.col("ab_code_postal"), "oracle").alias("code_postal"),
-                         clean_string(F.col("ab_statut_client"), "oracle").alias("statut")))
     ap_df = None
+
+    # -------------------------
+    # Clients ABASSURANCE
+    # -------------------------
+
+    if ab is not None:
+        ab_df = (
+            latest(ab, "ab_client_id")
+            .select(
+                F.lit("ABASSURANCE").alias("source"),
+
+                F.col("ab_client_id")
+                .cast("string")
+                .alias("id_source"),
+
+                clean_string(
+                    F.col("ab_nom"), "oracle"
+                ).alias("nom"),
+
+                clean_string(
+                    F.col("ab_prenom"), "oracle"
+                ).alias("prenom"),
+
+                epoch_days_str(
+                    "ab_date_naissance"
+                ).alias("date_naissance"),
+
+                sha_pseudo(
+                    clean_string(
+                        F.col("ab_email"), "oracle"
+                    )
+                ).alias("email_pseudo"),
+
+                sha_pseudo(
+                    clean_string(
+                        F.col("ab_telephone"), "oracle"
+                    )
+                ).alias("telephone_pseudo"),
+
+                clean_string(
+                    F.col("ab_code_postal"), "oracle"
+                ).alias("code_postal"),
+
+                clean_string(
+                    F.col("ab_statut_client"), "oracle"
+                ).alias("statut")
+            )
+        )
+
+    # -------------------------
+    # Clients ASSUREPLUS
+    # -------------------------
+
     if ap is not None:
-        parts = F.split(F.coalesce(clean_string(F.col("ap_full_name"), "sqlserver"), F.lit("")), " ")
-        ap_df = (latest(ap, "ap_user_id")
-                 .select(F.lit("ASSUREPLUS").alias("source"),
-                         F.col("ap_user_id").cast("string").alias("id_source"),
-                         clean_string(parts.getItem(0), "sqlserver").alias("nom"),
-                         clean_string(F.coalesce(parts.getItem(1), F.lit("")), "sqlserver").alias("prenom"),
-                         clean_string(F.coalesce(F.col("ap_birth_date"), F.lit("")), "sqlserver").alias("date_naissance"),
-                         sha_pseudo(clean_string(F.col("ap_mail_address"), "sqlserver")).alias("email_pseudo"),
-                         sha_pseudo(clean_string(F.col("ap_phone_number"), "sqlserver")).alias("telephone_pseudo"),
-                         clean_string(F.col("ap_zip_code"), "sqlserver").alias("code_postal"),
-                         clean_string(F.col("ap_customer_status"), "sqlserver").alias("statut")))
+        # Séparation du nom complet.
+        parts = F.split(
+            F.trim(
+                F.coalesce(
+                    clean_string(
+                        F.col("ap_full_name"), "sqlserver"
+                    ),
+                    F.lit("")
+                )
+            ),
+            r"\s+"
+        )
+
+        ap_df = (
+            latest(ap, "ap_user_id")
+            .select(
+                F.lit("ASSUREPLUS").alias("source"),
+
+                F.col("ap_user_id")
+                .cast("string")
+                .alias("id_source"),
+
+                clean_string(
+                    parts.getItem(0), "sqlserver"
+                ).alias("nom"),
+
+                clean_string(
+                    F.coalesce(
+                        parts.getItem(1),
+                        F.lit("")
+                    ),
+                    "sqlserver"
+                ).alias("prenom"),
+
+                clean_date(
+                    F.col("ap_birth_date")
+                ).alias("date_naissance"),
+
+                sha_pseudo(
+                    clean_string(
+                        F.col("ap_mail_address"), "sqlserver"
+                    )
+                ).alias("email_pseudo"),
+
+                sha_pseudo(
+                    clean_string(
+                        F.col("ap_phone_number"), "sqlserver"
+                    )
+                ).alias("telephone_pseudo"),
+
+                clean_string(
+                    F.col("ap_zip_code"), "sqlserver"
+                ).alias("code_postal"),
+
+                clean_string(
+                    F.col("ap_customer_status"), "sqlserver"
+                ).alias("statut")
+            )
+        )
+
     return union_or_none(ab_df, ap_df)
 
 
+# =============================================================================
+# 6. DETECTION DES DOUBLONS
+# =============================================================================
+
 def build_doublons(clients):
-    """Matrice de doublons inter-assureurs (meme nom, prenom, date_naissance, code_postal)."""
+    """Détecte les clients communs aux deux assureurs."""
+
     if clients is None:
         return None
-    
-    # Creer une cle de deduplication basee sur nom, prenom, date_naissance, code_postal
-    def dedup_key(df):
-        return df.withColumn(
-            "dedup_key",
-            F.sha2(
-                F.concat_ws(
-                    "|",
-                    F.coalesce(F.lower(F.trim(F.col("nom"))), F.lit("")),
-                    F.coalesce(F.lower(F.trim(F.col("prenom"))), F.lit("")),
-                    F.coalesce(F.col("date_naissance"), F.lit("")),
-                    F.coalesce(F.col("code_postal"), F.lit(""))
+
+    def dedup_key(df, prefix):
+        key = F.concat_ws(
+            "|",
+
+            F.coalesce(
+                F.lower(
+                    F.trim(F.col(f"{prefix}_nom"))
                 ),
-                256
+                F.lit("")
+            ),
+
+            F.coalesce(
+                F.lower(
+                    F.trim(F.col(f"{prefix}_prenom"))
+                ),
+                F.lit("")
+            ),
+
+            F.coalesce(
+                F.col(
+                    f"{prefix}_date_naissance"
+                ).cast("string"),
+                F.lit("")
+            ),
+
+            F.coalesce(
+                F.col(
+                    f"{prefix}_code_postal"
+                ).cast("string"),
+                F.lit("")
             )
         )
-    
-    ab = clients.filter(F.col("source") == "ABASSURANCE")
-    ap = clients.filter(F.col("source") == "ASSUREPLUS").withColumnRenamed("id_source", "id_ap")
-    
-    ab_with_key = dedup_key(ab)
-    ap_with_key = dedup_key(ap)
-    
-    m = ab_with_key.join(ap_with_key, "dedup_key")
-    
-    return m.select(
-        F.col("id_source").alias("id_ab"), 
-        F.col("id_ap"),
-        F.col("nom"), 
-        F.col("prenom"), 
-        F.col("date_naissance"),
-        F.col("code_postal")
-    ).distinct()
 
-    
+        return df.withColumn(
+            "dedup_key",
+            F.sha2(key, 256)
+        )
+
+    # Clients ABASSURANCE.
+    ab = (
+        clients
+        .filter(F.col("source") == "ABASSURANCE")
+        .select(
+            F.col("id_source").alias("ab_id"),
+            F.col("nom").alias("ab_nom"),
+            F.col("prenom").alias("ab_prenom"),
+            F.col("date_naissance").alias(
+                "ab_date_naissance"
+            ),
+            F.col("code_postal").alias(
+                "ab_code_postal"
+            )
+        )
+    )
+
+    # Clients ASSUREPLUS.
+    ap = (
+        clients
+        .filter(F.col("source") == "ASSUREPLUS")
+        .select(
+            F.col("id_source").alias("ap_id"),
+            F.col("nom").alias("ap_nom"),
+            F.col("prenom").alias("ap_prenom"),
+            F.col("date_naissance").alias(
+                "ap_date_naissance"
+            ),
+            F.col("code_postal").alias(
+                "ap_code_postal"
+            )
+        )
+    )
+
+    ab = dedup_key(ab, "ab").alias("ab")
+    ap = dedup_key(ap, "ap").alias("ap")
+
+    return (
+        ab.join(
+            ap,
+            F.col("ab.dedup_key") == F.col("ap.dedup_key"),
+            "inner"
+        )
+        .select(
+            F.col("ab.ab_id").alias("id_ab"),
+            F.col("ap.ap_id").alias("id_ap"),
+            F.col("ab.ab_nom").alias("nom"),
+            F.col("ab.ab_prenom").alias("prenom"),
+            F.col("ab.ab_date_naissance").alias(
+                "date_naissance"
+            ),
+            F.col("ab.ab_code_postal").alias(
+                "code_postal"
+            )
+        )
+        .distinct()
+    )
+
+
+# =============================================================================
+# 7. CONSOLIDATION DES CONTRATS
+# =============================================================================
+
 def build_contrats(spark):
     ab = bronze(spark, "dbab_ab_ab_contrat")
     ap = bronze(spark, "dbap_ap_ap_contracts")
+
     ab_df = None
-    if ab is not None:
-        ab_df = (latest(ab, "ab_policy_number")
-                 .select(F.lit("ABASSURANCE").alias("source"),
-                         F.col("ab_policy_number").alias("ref_contrat"),
-                         F.col("ab_client_id").cast("string").alias("id_client_source"),
-                         F.col("ab_type_assurance").alias("type_assurance"),
-                         epoch_days_str("ab_date_debut").alias("date_debut"),
-                         F.col("ab_prime_annuelle").cast("double").alias("prime_annuelle"),
-                         F.col("ab_statut_contrat").alias("statut")))
     ap_df = None
+
+    if ab is not None:
+        ab_df = (
+            latest(ab, "ab_policy_number")
+            .select(
+                F.lit("ABASSURANCE").alias("source"),
+                F.col("ab_policy_number").alias("ref_contrat"),
+                F.col("ab_client_id").cast("string").alias(
+                    "id_client_source"
+                ),
+                clean_string(
+                    F.col("ab_type_assurance"), "oracle"
+                ).alias("type_assurance"),
+                epoch_days_str(
+                    "ab_date_debut"
+                ).alias("date_debut"),
+                F.col("ab_prime_annuelle")
+                .cast("double")
+                .alias("prime_annuelle"),
+                clean_string(
+                    F.col("ab_statut_contrat"), "oracle"
+                ).alias("statut")
+            )
+        )
+
     if ap is not None:
-        ap_df = (latest(ap, "ap_contract_ref")
-                 .select(F.lit("ASSUREPLUS").alias("source"),
-                         F.col("ap_contract_ref").alias("ref_contrat"),
-                         F.col("ap_user_id").cast("string").alias("id_client_source"),
-                         F.col("ap_product_code").alias("type_assurance"),
-                         epoch_us_str("ap_start_date").alias("date_debut"),
-                         (F.col("ap_monthly_premium").cast("double") * 12).alias("prime_annuelle"),
-                         F.col("ap_contract_state").alias("statut")))
+        ap_df = (
+            latest(ap, "ap_contract_ref")
+            .select(
+                F.lit("ASSUREPLUS").alias("source"),
+                F.col("ap_contract_ref").alias("ref_contrat"),
+                F.col("ap_user_id").cast("string").alias(
+                    "id_client_source"
+                ),
+                clean_string(
+                    F.col("ap_product_code"), "sqlserver"
+                ).alias("type_assurance"),
+                epoch_ms_str(
+                    "ap_start_date"
+                ).alias("date_debut"),
+                (
+                    F.col("ap_monthly_premium").cast("double") * 12
+                ).alias("prime_annuelle"),
+                clean_string(
+                    F.col("ap_contract_state"), "sqlserver"
+                ).alias("statut")
+            )
+        )
+
     return union_or_none(ab_df, ap_df)
 
+
+# =============================================================================
+# 8. CONSOLIDATION DES SINISTRES
+# =============================================================================
 
 def build_sinistres(spark):
     ab = bronze(spark, "dbab_ab_ab_sinistre")
     ap = bronze(spark, "dbap_ap_ap_claims")
+
     ab_df = None
-    if ab is not None:
-        ab_df = (latest(ab, "ab_claim_id")
-                 .select(F.lit("ABASSURANCE").alias("source"),
-                         F.col("ab_claim_id").cast("string").alias("id_sinistre"),
-                         F.col("ab_policy_number").alias("ref_contrat"),
-                         epoch_us_str("ab_date_sinistre").alias("date_sinistre"),
-                         F.col("ab_montant_estime").cast("double").alias("montant_estime"),
-                         F.col("ab_statut_sinistre").alias("statut")))
     ap_df = None
+
+    if ab is not None:
+        ab_df = (
+            latest(ab, "ab_claim_id")
+            .select(
+                F.lit("ABASSURANCE").alias("source"),
+                F.col("ab_claim_id").cast("string").alias(
+                    "id_sinistre"
+                ),
+                F.col("ab_policy_number").alias("ref_contrat"),
+                epoch_ms_str(
+                    "ab_date_sinistre"
+                ).alias("date_sinistre"),
+                F.col("ab_montant_estime")
+                .cast("double")
+                .alias("montant_estime"),
+                clean_string(
+                    F.col("ab_statut_sinistre"), "oracle"
+                ).alias("statut")
+            )
+        )
+
     if ap is not None:
-        ap_df = (latest(ap, "ap_sinistre_num")
-                 .select(F.lit("ASSUREPLUS").alias("source"),
-                         F.col("ap_sinistre_num").cast("string").alias("id_sinistre"),
-                         F.col("ap_contract_ref").alias("ref_contrat"),
-                         F.coalesce(F.col("ap_incident_date"), F.lit("")).alias("date_sinistre"),
-                         F.col("ap_estimated_amount").cast("double").alias("montant_estime"),
-                         F.col("ap_claim_status").alias("statut")))
+        ap_df = (
+            latest(ap, "ap_sinistre_num")
+            .select(
+                F.lit("ASSUREPLUS").alias("source"),
+                F.col("ap_sinistre_num").cast("string").alias(
+                    "id_sinistre"
+                ),
+                F.col("ap_contract_ref").alias("ref_contrat"),
+                clean_string(
+                    F.col("ap_incident_date"), "sqlserver"
+                ).alias("date_sinistre"),
+                F.col("ap_estimated_amount")
+                .cast("double")
+                .alias("montant_estime"),
+                clean_string(
+                    F.col("ap_claim_status"), "sqlserver"
+                ).alias("statut")
+            )
+        )
+
     return union_or_none(ab_df, ap_df)
 
+
+# =============================================================================
+# 9. CONSOLIDATION DES PAIEMENTS
+# =============================================================================
 
 def build_paiements(spark):
     ab = bronze(spark, "dbab_ab_ab_paiement")
     ap = bronze(spark, "dbap_ap_ap_payments")
+
     ab_df = None
-    if ab is not None:
-        ab_df = (latest(ab, "ab_payment_id")
-                 .select(F.lit("ABASSURANCE").alias("source"),
-                         F.col("ab_payment_id").cast("string").alias("id_paiement"),
-                         F.col("ab_policy_number").alias("ref_contrat"),
-                         epoch_days_str("ab_date_paiement").alias("date_paiement"),
-                         F.col("ab_montant").cast("double").alias("montant"),
-                         F.col("ab_mode_paiement").alias("mode_paiement")))
     ap_df = None
+
+    if ab is not None:
+        ab_df = (
+            latest(ab, "ab_payment_id")
+            .select(
+                F.lit("ABASSURANCE").alias("source"),
+                F.col("ab_payment_id").cast("string").alias(
+                    "id_paiement"
+                ),
+                F.col("ab_policy_number").alias("ref_contrat"),
+                epoch_days_str(
+                    "ab_date_paiement"
+                ).alias("date_paiement"),
+                F.col("ab_montant").cast("double").alias(
+                    "montant"
+                ),
+                clean_string(
+                    F.col("ab_mode_paiement"), "oracle"
+                ).alias("mode_paiement")
+            )
+        )
+
     if ap is not None:
-        ap_df = (latest(ap, "ap_payment_ref")
-                 .select(F.lit("ASSUREPLUS").alias("source"),
-                         F.col("ap_payment_ref").alias("id_paiement"),
-                         F.col("ap_contract_ref").alias("ref_contrat"),
-                         epoch_us_str("ap_payment_datetime").alias("date_paiement"),
-                         F.col("ap_amount_paid").cast("double").alias("montant"),
-                         F.col("ap_payment_channel").alias("mode_paiement")))
+        ap_df = (
+            latest(ap, "ap_payment_ref")
+            .select(
+                F.lit("ASSUREPLUS").alias("source"),
+                F.col("ap_payment_ref").alias("id_paiement"),
+                F.col("ap_contract_ref").alias("ref_contrat"),
+                epoch_ms_str(
+                    "ap_payment_datetime"
+                ).alias("date_paiement"),
+                F.col("ap_amount_paid").cast("double").alias(
+                    "montant"
+                ),
+                clean_string(
+                    F.col("ap_payment_channel"), "sqlserver"
+                ).alias("mode_paiement")
+            )
+        )
+
     return union_or_none(ab_df, ap_df)
 
 
-def recompute_gold(spark):
-    """Reecrit les tables gold depuis la zone bronze (appelee a chaque batch)."""
-    written = []
-    for name, builder in [("clients", lambda: build_clients(spark)),
-                          ("contrats", lambda: build_contrats(spark)),
-                          ("sinistres", lambda: build_sinistres(spark)),
-                          ("paiements", lambda: build_paiements(spark))]:
-        try:
-            df = builder()
-            if df is None:
-                continue
-            df.write.mode("overwrite").parquet(f"{GOLD}/{name}")
-            written.append(name)
-            if name == "clients":
-                d = build_doublons(df)
-                if d is not None:
-                    d.write.mode("overwrite").parquet(f"{GOLD}/doublons")
-                    written.append("doublons")
-        except Exception as e:  # noqa: BLE001
-            # fichier bronze partiel en cours d'ecriture : retry au batch suivant
-            print(f"[gold] {name} reporte au prochain batch : {e}")
-    print(f"[gold] tables a jour : {', '.join(written) if written else 'aucune'}")
+# =============================================================================
+# 10. RECALCUL GOLD
+# =============================================================================
 
+def recompute_gold(spark):
+    """
+    Recalcule les tables Gold depuis Bronze.
+
+    Les erreurs sont enregistrées et remontées à la fin.
+    Une table absente de Bronze n'écrase pas une ancienne table Gold.
+    """
+
+    builders = {
+        "clients": build_clients,
+        "contrats": build_contrats,
+        "sinistres": build_sinistres,
+        "paiements": build_paiements,
+    }
+
+    written = []
+    failed = []
+
+    print("[gold] Début du recalcul Gold")
+
+    for name, builder in builders.items():
+
+        try:
+            print(f"[gold] Construction : {name}")
+
+            df = builder(spark)
+
+            if df is None:
+                print(
+                    f"[gold] {name} ignorée : "
+                    "aucune donnée Bronze disponible"
+                )
+                continue
+
+            output_path = f"{GOLD}/{name}"
+
+            (
+                df.write
+                .mode("overwrite")
+                .format("parquet")
+                .save(output_path)
+            )
+
+            written.append(name)
+
+            print(
+                f"[gold] Table {name} écrite : {output_path}"
+            )
+
+            # Calcul des doublons après l'écriture des clients.
+            if name == "clients":
+
+                print("[gold] Calcul des doublons")
+
+                doublons_df = build_doublons(df)
+
+                if doublons_df is not None:
+                    doublons_path = f"{GOLD}/doublons"
+
+                    (
+                        doublons_df.write
+                        .mode("overwrite")
+                        .format("parquet")
+                        .save(doublons_path)
+                    )
+
+                    written.append("doublons")
+
+                    print(
+                        f"[gold] Table doublons écrite : "
+                        f"{doublons_path}"
+                    )
+
+        except Exception as e:
+            failed.append(name)
+
+            print(
+                f"[gold] ERREUR sur la table {name} : {e}"
+            )
+
+            import traceback
+            traceback.print_exc()
+
+    print("[gold] Bilan du recalcul")
+    print(f"[gold] Tables écrites : {written}")
+    print(f"[gold] Tables en erreur : {failed}")
+
+    if failed:
+        raise RuntimeError(
+            "Échec du recalcul Gold : "
+            + ", ".join(failed)
+        )
+
+    print("[gold] Recalcul terminé avec succès")
+
+
+# =============================================================================
+# 11. FLUX DECLENCHEUR GOLD
+# =============================================================================
 
 def start_gold(spark):
-    """Flux declencheur : l'arrivee d'evenements CDC relance le calcul gold.
-    Le contenu du batch est ignore : la bronze reste la source de verite."""
-    def recompute(batch_df, batch_id):
-        try:
-            recompute_gold(spark)
-        except Exception as e:  # noqa: BLE001
-            print(f"[gold] recompute echoue : {e}")
-    q = (spark.readStream.format("kafka")
-         .option("kafka.bootstrap.servers", KAFKA)
-         .option("subscribe", ",".join(AFTER.keys()))
-         .option("startingOffsets", "earliest")
-         .option("failOnDataLoss", "false")
-         .load())
-    return (q.writeStream
-            .foreachBatch(recompute)
-            .option("checkpointLocation", "/tmp/checkpoints/gold")
-            .trigger(processingTime="15 seconds")
-            .start())
+    """
+    Flux déclencheur :
+    chaque micro-batch Kafka relance le recalcul Gold.
+    """
 
+    def recompute(batch_df, batch_id):
+        print(f"[gold] Début du batch {batch_id}")
+
+        recompute_gold(spark)
+
+        print(f"[gold] Batch {batch_id} terminé")
+
+    q = (
+        spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA)
+        .option("subscribe", ",".join(AFTER.keys()))
+        .option("startingOffsets", "earliest")
+        .option("failOnDataLoss", "false")
+        .load()
+    )
+
+    return (
+        q.writeStream
+        .queryName("gold_recomputation")
+        .foreachBatch(recompute)
+        .option(
+            "checkpointLocation",
+            "/tmp/checkpoints/gold"
+        )
+        .trigger(processingTime="15 seconds")
+        .start()
+    )
+
+
+# =============================================================================
+# 12. MAIN : DEMARRAGE ET ARRET DES FLUX
+# =============================================================================
 
 def main():
-    spark = (SparkSession.builder.appName("AbAssurance-Streaming-HDFS")
-             .config("spark.jars.ivy", "/tmp/.ivy2")
-             .config("spark.jars.packages",
-                     "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1")
-             .getOrCreate())
+
+    spark = (
+        SparkSession.builder
+        .appName("AbAssurance-Streaming-HDFS")
+        .config("spark.jars.ivy", "/tmp/.ivy2")
+        .config(
+            "spark.jars.packages",
+            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1"
+        )
+        .config("spark.sql.adaptive.enabled", "false")
+        .getOrCreate()
+    )
+
     spark.sparkContext.setLogLevel("WARN")
 
-    for topic in AFTER:
-        start_hdfs_writer(spark, topic)
-        print(f"Flux actif : {topic} -> {HDFS}/datalake/cdc/{topic.replace('.', '_')}")
-    start_gold(spark)
-    print(f"Gold actif : consolidation + doublons -> {GOLD} (recalcul a chaque batch).")
+    queries = []
 
-    print("Spark Streaming actif : CDC Debezium -> HDFS Parquet (5 s de latence).")
-    spark.streams.awaitAnyTermination()
+    try:
+        # Démarrage des huit flux Bronze.
+        for topic in AFTER:
+
+            query = start_hdfs_writer(spark, topic)
+            queries.append(query)
+
+            print(
+                f"Flux actif : {topic} -> "
+                f"{HDFS}/datalake/cdc/"
+                f"{topic.replace('.', '_')}"
+            )
+
+        # Démarrage du flux Gold.
+        gold_query = start_gold(spark)
+        queries.append(gold_query)
+
+        print(
+            f"Gold actif : consolidation + doublons -> {GOLD}"
+        )
+
+        print(
+            "Spark Streaming actif : "
+            "CDC Debezium -> HDFS Parquet."
+        )
+
+        # Attente de la terminaison d'un flux.
+        spark.streams.awaitAnyTermination()
+
+    except KeyboardInterrupt:
+        print("[streaming] Arrêt manuel demandé")
+
+    except Exception as e:
+        print(f"[streaming] ERREUR : {e}")
+
+        # Afficher les erreurs individuelles des requêtes.
+        for query in queries:
+            try:
+                if query.exception() is not None:
+                    print(
+                        f"[streaming] Erreur requête "
+                        f"{query.name} : {query.exception()}"
+                    )
+            except Exception:
+                pass
+
+        raise
+
+    finally:
+        print("[streaming] Arrêt des requêtes")
+
+        for query in queries:
+            try:
+                if query.isActive:
+                    query.stop()
+                    print(
+                        f"[streaming] Requête arrêtée : {query.name}"
+                    )
+            except Exception as e:
+                print(
+                    f"[streaming] Erreur arrêt requête : {e}"
+                )
+
+        try:
+            spark.stop()
+        except Exception as e:
+            print(f"[streaming] Erreur arrêt Spark : {e}")
+
+        print("[streaming] Application arrêtée")
 
 
 if __name__ == "__main__":
