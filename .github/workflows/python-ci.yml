@@ -38,7 +38,7 @@ jobs:
         projectBaseDir: .
         args: >
           -Dsonar.organization=Pipeline-ESS
-          # -Dsonar.projectKey=abassurance-project
+          -Dsonar.projectKey=abassurance-project
           -Dsonar.python.coverage.reportPaths=coverage.xml
           -Dsonar.python.xunit.reportPath=test-results.xml
           -Dsonar.sources=.
