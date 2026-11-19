@@ -38,7 +38,7 @@ jobs:
         projectBaseDir: .
         args: >
           -Dsonar.host.url=https://sonarcloud.io
-          -Dsonar.organization=Pipeline-ESS
+          -Dsonar.organization=Pesssofprojets
           -Dsonar.projectKey=abassurance-project
           -Dsonar.python.coverage.reportPaths=coverage.xml
           -Dsonar.python.xunit.reportPath=test-results.xml
