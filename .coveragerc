@@ -13,7 +13,6 @@ omit =
     */site-packages/*
     */.github/*
     */dataviz/*
-    */spark/streaming_pipeline.py  # Fichier principal avec fonctions de nettoyage
 
 # Include only certain files
 # include = spark/*, dataviz/*
