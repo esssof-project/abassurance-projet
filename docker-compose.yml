@@ -101,6 +101,7 @@ services:
     env_file: ./hadoop.env
     ports:
       - "9870:9870"
+      - "9000:9000"
     volumes:
       - namenode_data:/hadoop/dfs/name
 
