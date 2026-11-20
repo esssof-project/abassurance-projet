@@ -314,7 +314,7 @@ def bronze(spark, name):
     try:
         return spark.read.parquet(path)
 
-    except (PySparkException, Py4JJavaError) as e:
+    except (OSError, PySparkException, Py4JJavaError) as e:
         print(f"[bronze] Lecture impossible {path}: {e}")
         return None
 
@@ -867,7 +867,7 @@ def recompute_gold(spark):
                         f"{doublons_path}"
                     )
 
-        except (PySparkException, Py4JJavaError) as e:
+        except Exception as e:  # noqa: BLE001
             failed.append(name)
 
             print(

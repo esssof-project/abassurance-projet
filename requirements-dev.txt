@@ -4,8 +4,8 @@ pytest
 pytest-cov
 pytest-xdist
 
-# Spark dependencies
-pyspark
+# Spark dependencies (match the Spark 3.5.1 Docker image)
+pyspark==3.5.1
 # HTTP client for HDFS
 requests
 pyarrow

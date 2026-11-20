@@ -13,10 +13,10 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Required for SonarCloud to detect changes
-    - name: Set up Java 11
+    - name: Set up Java 17
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'  # Eclipse Temurin (recommandé)
         
     - name: Set up Python
