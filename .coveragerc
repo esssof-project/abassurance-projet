@@ -12,6 +12,7 @@ omit =
     */venv/*
     */site-packages/*
     */.github/*
+    */dataviz/*
     */spark/streaming_pipeline.py  # Fichier principal avec fonctions de nettoyage
 
 # Include only certain files

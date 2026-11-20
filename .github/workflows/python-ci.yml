@@ -36,8 +36,8 @@ jobs:
         
     - name: Test with coverage
       run: |
-        pytest --cov=./ --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
-    
+        pytest --cov=./ --cov-config=.coveragerc --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
+
     - name: Trust SonarQube TLS certificate
       env:
         SONAR_CA_CERT: ${{ secrets.SONAR_CA_CERT }}

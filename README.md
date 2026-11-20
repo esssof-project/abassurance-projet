@@ -37,7 +37,7 @@ Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
 ## Qualite de code
 
 - En local : `./run-tests.sh` (tests Spark, coverage et Ruff).
-- CI : GitHub Actions exécute Ruff et les tests ; l'analyse SonarQube est lancée sur les pushes vers `main`.
+- CI : GitHub Actions exécute Ruff et les tests ; Dataviz est exclue des métriques de couverture, mais reste analysée par SonarQube. L'analyse SonarQube est lancée sur les pushes vers `main`.
 
 ### Déployer SonarQube Server
 
