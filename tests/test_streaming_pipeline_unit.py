@@ -5,6 +5,7 @@ Ces tests complètent les tests déjà présents dans tests/.
 Ils n'utilisent ni Kafka ni HDFS : les DataFrames sont locaux à Spark.
 """
 import datetime
+from unittest.mock import MagicMock
 
 import pytest
 from pyspark.sql import SparkSession
@@ -137,13 +138,21 @@ def test_union_or_none_handles_all_cases(spark_session):
     assert sorted(r.id for r in pipeline.union_or_none(a, b).collect()) == [1, 2]
 
 
-def test_bronze_returns_none_when_read_fails(spark_session, monkeypatch):
-    class Reader:
-        def parquet(self, path):
-            raise OSError("not found")
-    class FakeSpark:
-        read = Reader()
-    assert pipeline.bronze(FakeSpark(), "missing") is None
+def test_bronze_returns_none_when_read_fails():
+    spark = MagicMock()
+    filesystem = (
+        spark._jvm.org.apache.hadoop.fs.Path.return_value
+        .getFileSystem.return_value
+    )
+    filesystem.exists.return_value = True
+    statuses = filesystem.listFiles.return_value
+    statuses.hasNext.side_effect = [True, False]
+    file_status = statuses.next.return_value
+    file_status.isFile.return_value = True
+    file_status.getPath.return_value.getName.return_value = "part-1.parquet"
+    spark.read.parquet.side_effect = OSError("not found")
+
+    assert pipeline.bronze(spark, "missing") is None
 
 
 def test_build_clients_returns_none_when_bronze_missing(spark_session, monkeypatch):

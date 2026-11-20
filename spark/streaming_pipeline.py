@@ -309,12 +309,38 @@ def sha_pseudo(col):
 
 
 def bronze(spark, name):
-    """Lit un dossier Bronze. Retourne None si absent."""
+    """Lit les fichiers Parquet d'un dossier Bronze. Retourne None si absent."""
 
     path = f"{HDFS}/datalake/cdc/{name}"
 
     try:
-        return spark.read.parquet(path)
+        hadoop_path = spark._jvm.org.apache.hadoop.fs.Path(path)
+        filesystem = hadoop_path.getFileSystem(
+            spark._jsc.hadoopConfiguration()
+        )
+
+        if not filesystem.exists(hadoop_path):
+            print(f"[bronze] Dossier absent : {path}")
+            return None
+
+        statuses = filesystem.listFiles(hadoop_path, True)
+        parquet_files = []
+
+        while statuses.hasNext():
+            file_status = statuses.next()
+            file_path = file_status.getPath()
+
+            if (
+                file_status.isFile()
+                and file_path.getName().endswith(".parquet")
+            ):
+                parquet_files.append(file_path.toString())
+
+        if not parquet_files:
+            print(f"[bronze] Aucun fichier Parquet dans {path}")
+            return None
+
+        return spark.read.parquet(*parquet_files)
 
     except (OSError, PySparkException, Py4JJavaError) as e:
         print(f"[bronze] Lecture impossible {path}: {e}")
