@@ -1,4 +1,6 @@
 """Tests pour spark/streaming_pipeline.py avec données HDFS réelles."""
+import os
+
 import pytest
 from pyspark.sql import functions as F
 
@@ -6,7 +8,8 @@ from pyspark.sql import functions as F
 def test_hdfs_configuration():
     """Vérifie que la configuration HDFS est correcte."""
     from spark.streaming_pipeline import HDFS
-    assert HDFS == "hdfs://namenode:9000", f"HDFS doit être 'hdfs://namenode:9000', mais est '{HDFS}'"
+
+    assert HDFS == os.environ.get("HDFS_URL", "hdfs://namenode:9000")
 
 
 class TestBronzeWithHDFS:

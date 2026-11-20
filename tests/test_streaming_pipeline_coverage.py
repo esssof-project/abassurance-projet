@@ -1,11 +1,10 @@
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from pyspark.sql import functions as F
 
 from spark import streaming_pipeline as p
-
 
 # =========================================================
 # 1. CLEANING
@@ -185,12 +184,18 @@ def test_latest(spark_session):
 
 
 def test_bronze_read_error():
-    class Reader:
-        def parquet(self, path):
-            raise OSError("HDFS unavailable")
-
     spark = MagicMock()
-    spark.read = Reader()
+    filesystem = (
+        spark._jvm.org.apache.hadoop.fs.Path.return_value
+        .getFileSystem.return_value
+    )
+    filesystem.exists.return_value = True
+    statuses = filesystem.listFiles.return_value
+    statuses.hasNext.side_effect = [True, False]
+    file_status = statuses.next.return_value
+    file_status.isFile.return_value = True
+    file_status.getPath.return_value.getName.return_value = "part-1.parquet"
+    spark.read.parquet.side_effect = OSError("HDFS unavailable")
 
     assert p.bronze(spark, "topic") is None
 

@@ -1,11 +1,16 @@
 
 """Spark Structured Streaming : CDC Debezium (Kafka) -> HDFS (Parquet)."""
 
-from pyspark.sql import SparkSession, functions as F, types as T
+import os
 
+from py4j.protocol import Py4JJavaError
+from pyspark.errors import PySparkException
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 KAFKA = "kafka:9092"
-HDFS = "hdfs://namenode:9000"
+HDFS = os.environ.get("HDFS_URL", "hdfs://namenode:9000")
 GOLD = f"{HDFS}/datalake/gold"
 
 
@@ -304,14 +309,40 @@ def sha_pseudo(col):
 
 
 def bronze(spark, name):
-    """Lit un dossier Bronze. Retourne None si absent."""
+    """Lit les fichiers Parquet d'un dossier Bronze. Retourne None si absent."""
 
     path = f"{HDFS}/datalake/cdc/{name}"
 
     try:
-        return spark.read.parquet(path)
+        hadoop_path = spark._jvm.org.apache.hadoop.fs.Path(path)
+        filesystem = hadoop_path.getFileSystem(
+            spark._jsc.hadoopConfiguration()
+        )
 
-    except Exception as e:
+        if not filesystem.exists(hadoop_path):
+            print(f"[bronze] Dossier absent : {path}")
+            return None
+
+        statuses = filesystem.listFiles(hadoop_path, True)
+        parquet_files = []
+
+        while statuses.hasNext():
+            file_status = statuses.next()
+            file_path = file_status.getPath()
+
+            if (
+                file_status.isFile()
+                and file_path.getName().endswith(".parquet")
+            ):
+                parquet_files.append(file_path.toString())
+
+        if not parquet_files:
+            print(f"[bronze] Aucun fichier Parquet dans {path}")
+            return None
+
+        return spark.read.parquet(*parquet_files)
+
+    except (OSError, PySparkException, Py4JJavaError) as e:
         print(f"[bronze] Lecture impossible {path}: {e}")
         return None
 
@@ -864,7 +895,7 @@ def recompute_gold(spark):
                         f"{doublons_path}"
                     )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             failed.append(name)
 
             print(
@@ -992,8 +1023,11 @@ def main():
                         f"[streaming] Erreur requête "
                         f"{query.name} : {query.exception()}"
                     )
-            except Exception:
-                pass
+            except (PySparkException, Py4JJavaError) as e:
+                print(
+                    f"[streaming] Impossible de lire l'erreur de "
+                    f"{query.name} : {e}"
+                )
 
         raise
 
@@ -1007,14 +1041,14 @@ def main():
                     print(
                         f"[streaming] Requête arrêtée : {query.name}"
                     )
-            except Exception as e:
+            except (PySparkException, Py4JJavaError) as e:
                 print(
                     f"[streaming] Erreur arrêt requête : {e}"
                 )
 
         try:
             spark.stop()
-        except Exception as e:
+        except (PySparkException, Py4JJavaError) as e:
             print(f"[streaming] Erreur arrêt Spark : {e}")
 
         print("[streaming] Application arrêtée")

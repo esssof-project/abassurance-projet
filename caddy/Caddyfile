@@ -1,6 +1,14 @@
 ec2-15-236-126-88.eu-west-3.compute.amazonaws.com {
     tls internal
-    reverse_proxy dataviz:8501
+
+    @sonarqube path /sonarqube /sonarqube/*
+    handle @sonarqube {
+        reverse_proxy sonarqube:9000
+    }
+
+    handle {
+        reverse_proxy dataviz:8501
+    }
 }
 
 http://ec2-15-236-126-88.eu-west-3.compute.amazonaws.com {

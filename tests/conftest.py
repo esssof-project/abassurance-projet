@@ -1,4 +1,6 @@
 """Fixtures pour les tests."""
+import os
+
 import pytest
 from pyspark.sql import SparkSession
 
@@ -6,10 +8,13 @@ from pyspark.sql import SparkSession
 @pytest.fixture(scope="session")
 def spark_session():
     """Session Spark pour les tests."""
-    spark = (SparkSession.builder
+    spark = (
+        SparkSession.builder
         .appName("test-streaming-pipeline")
         .master("local[2]")
-        .getOrCreate())
+        .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
+        .getOrCreate()
+    )
     yield spark
     spark.stop()
 
@@ -18,8 +23,9 @@ def spark_session():
 def hdfs_accessible():
     """Vérifie que HDFS est accessible."""
     from hdfs import InsecureClient
+    webhdfs_url = os.environ.get("HDFS_WEB_URL", "http://namenode:9870")
     try:
-        client = InsecureClient("http://namenode:9870", user_name="hadoop")
+        client = InsecureClient(webhdfs_url, user_name="hadoop")
         client.list("/")
         yield True
     except Exception as e:  # noqa: BLE001

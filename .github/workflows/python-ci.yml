@@ -13,10 +13,10 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Required for SonarCloud to detect changes
-    - name: Set up Java 11
+    - name: Set up Java 17
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'  # Eclipse Temurin (recommandé)
         
     - name: Set up Python
@@ -36,24 +36,23 @@ jobs:
         
     - name: Test with coverage
       run: |
-        pytest --cov=./ --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
-    
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarcloud-github-action@master
+        pytest --cov=spark.streaming_pipeline --cov-config=.coveragerc --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
+
+    - name: Trust SonarQube TLS certificate
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_CA_CERT: ${{ secrets.SONAR_CA_CERT }}
+      run: |
+        printf '%s\n' "$SONAR_CA_CERT" > "$RUNNER_TEMP/sonar-ca.crt"
+        keytool -importcert -noprompt -trustcacerts -alias sonar-server \
+          -file "$RUNNER_TEMP/sonar-ca.crt" \
+          -keystore "$RUNNER_TEMP/sonar-truststore.p12" \
+          -storetype PKCS12 -storepass changeit
+
+    - name: SonarQube Server Scan
+      uses: SonarSource/sonarqube-scan-action@v8.3.0
+      env:
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      with:
-        projectBaseDir: .
-        args: >
-          -Dsonar.host.url=https://sonarcloud.io
-          -Dsonar.organization=esssofprojets
-          -Dsonar.projectKey=Pipeline-ESS_absassurance-projet
-          -Dsonar.python.coverage.reportPaths=coverage.xml
-          -Dsonar.python.xunit.reportPath=test-results.xml
-          -Dsonar.sources=.
-          -Dsonar.exclusions=**/tests/**,**/__pycache__/**,**/venv/**,**/.venv/**
-          -Dsonar.test.inclusions=**/tests/**/*.py
-          -Dsonar.coverage.exclusions=**/tests/**,**/conftest.py
-          -Dsonar.python.version=3.11
-          -Dsonar.coverage.minimum=80
+        SONAR_SCANNER_OPTS: >-
+          -Djavax.net.ssl.trustStore=${{ runner.temp }}/sonar-truststore.p12
+          -Djavax.net.ssl.trustStorePassword=changeit
