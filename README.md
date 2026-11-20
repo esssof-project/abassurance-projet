@@ -36,7 +36,7 @@ Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
 
 ## Qualite de code
 
-- En local : `./run-tests.sh` (tests Spark, coverage et Ruff). Pour lancer les tests depuis l'hôte EC2, le NameNode publie son RPC sur `127.0.0.1:9001` afin d'éviter le port 9000 de SonarQube : `HDFS_URL=hdfs://127.0.0.1:9001 ./run-tests.sh`.
+- En local : `./run-tests.sh` (tests Spark, coverage et Ruff). Pour exécuter les tests directement sur l'hôte EC2, le NameNode RPC et le WebHDFS sont publiés sur localhost, ainsi que le port de transfert du DataNode. Après mise à jour de la configuration, ajouter `127.0.0.1 datanode` dans `/etc/hosts`, recréer les services avec `docker compose up -d --force-recreate namenode datanode`, puis lancer `HDFS_URL=hdfs://127.0.0.1:9001 HDFS_WEB_URL=http://127.0.0.1:9870 ./run-tests.sh`. Le port DataNode 9866 reste limité à localhost.
 - CI : GitHub Actions exécute Ruff et les tests ; Dataviz est exclue des métriques de couverture, mais reste analysée par SonarQube. L'analyse SonarQube est lancée sur les pushes vers `main`.
 
 ### Déployer SonarQube Server
