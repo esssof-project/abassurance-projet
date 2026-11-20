@@ -2,13 +2,19 @@
 ruff
 pytest
 pytest-cov
+pytest-xdist
 
-# Spark dependencies
-pyspark
-
+# Spark dependencies (match the Spark 3.5.1 Docker image)
+pyspark==3.5.1
 # HTTP client for HDFS
 requests
 pyarrow
 
 # For HDFS client in tests
 hdfs
+
+# Great Expectations for data validation
+great-expectations
+
+# SonarCloud scanner (optional, can use GitHub Action instead)
+# sonarqube>=4.0.0

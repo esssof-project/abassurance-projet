@@ -1,0 +1,70 @@
+config_version: 3.0
+
+# Configuration des datasources
+ datasources:
+   spark_datasource:
+     module_name: great_expectations.datasource
+     class_name: Datasource
+     execution_engine:
+       module_name: great_expectations.execution_engine
+       class_name: SparkDFExecutionEngine
+     data_connectors:
+       default_runtime_data_connector:
+         module_name: great_expectations.datasource.data_connector
+         class_name: RuntimeDataConnector
+         batch_identifiers:
+           - default_identifier_name
+       default_inferred_data_connector:
+         module_name: great_expectations.datasource.data_connector
+         class_name: InferredAssetSqlDataConnector
+         name: default_inferred_data_connector
+         initialization_script:
+           - create table if not exists dataviz.clients (id int, nom string, prenom string);
+         
+# Configuration des stores
+stores:
+  expectations_store:
+    module_name: great_expectations.expectations.expectations_store
+    class_name: JsonExpectationsStore
+    store_backend:
+      module_name: great_expectations.stores.store_backend
+      class_name: FileSystemStoreBackend
+      base_directory: great_expectations/expectations
+  
+  validations_store:
+    module_name: great_expectations.validations
+    class_name: ValidationsStore
+    store_backend:
+      module_name: great_expectations.stores.store_backend
+      class_name: FileSystemStoreBackend
+      base_directory: great_expectations/validations
+
+  checkpoint_store:
+    module_name: great_expectations.checkpoints
+    class_name: CheckpointStore
+    store_backend:
+      module_name: great_expectations.stores.store_backend
+      class_name: FileSystemStoreBackend
+      base_directory: great_expectations/checkpoints
+
+# Configuration des suites
+expectations_suites:
+  - name: default
+    path: great_expectations/expectations
+
+# Plugins
+plugins_directory: great_expectations/plugins
+
+# Evaluation parameters
+evaluation_parameters: {}
+
+# Notebooks
+notebooks:
+  root_directory: great_expectations/notebooks
+
+# Documentation
+documentation:
+  store_backend:
+    module_name: great_expectations.stores.store_backend
+    class_name: FileSystemStoreBackend
+    base_directory: great_expectations/docs
