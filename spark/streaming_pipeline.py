@@ -1,6 +1,8 @@
 
 """Spark Structured Streaming : CDC Debezium (Kafka) -> HDFS (Parquet)."""
 
+import os
+
 from py4j.protocol import Py4JJavaError
 from pyspark.errors import PySparkException
 from pyspark.sql import SparkSession
@@ -8,7 +10,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 KAFKA = "kafka:9092"
-HDFS = "hdfs://namenode:9000"
+HDFS = os.environ.get("HDFS_URL", "hdfs://namenode:9000")
 GOLD = f"{HDFS}/datalake/gold"
 
 

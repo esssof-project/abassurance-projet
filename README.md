@@ -36,7 +36,7 @@ Aucun conteneur a relancer : c'est l'architecture Hadoop -> Dataviz demandee.
 
 ## Qualite de code
 
-- En local : `./run-tests.sh` (tests Spark, coverage et Ruff).
+- En local : `./run-tests.sh` (tests Spark, coverage et Ruff). Pour lancer les tests depuis l'hôte EC2, le NameNode publie son RPC sur `127.0.0.1:9001` afin d'éviter le port 9000 de SonarQube : `HDFS_URL=hdfs://127.0.0.1:9001 ./run-tests.sh`.
 - CI : GitHub Actions exécute Ruff et les tests ; Dataviz est exclue des métriques de couverture, mais reste analysée par SonarQube. L'analyse SonarQube est lancée sur les pushes vers `main`.
 
 ### Déployer SonarQube Server
