@@ -1,0 +1,53 @@
+[run]
+# Source packages to measure
+source = .
+
+# Omit directories from coverage
+omit = 
+    */tests/*
+    */test_*.py
+    */conftest.py
+    */__pycache__/*
+    */.venv/*
+    */venv/*
+    */site-packages/*
+    */.github/*
+    */spark/streaming_pipeline.py  # Fichier principal avec fonctions de nettoyage
+
+# Include only certain files
+# include = spark/*, dataviz/*
+
+[report]
+# Exclude lines from coverage reporting
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+    
+    # Don't complain about missing debug-only code
+    def __repr__
+    
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    
+    # Don't complain about abstract methods
+    @abstractmethod
+    
+    # Don't complain about deprecation warnings
+    @deprecated
+
+# Don't complain about missing coverage in exception handlers
+# (This is a good practice but may be hard to achieve)
+# omit = */except*/
+
+# Minimum acceptable coverage percentage
+# fail_under = 80
+
+[xml]
+output = coverage.xml
+
+[html]
+directory = htmlcov

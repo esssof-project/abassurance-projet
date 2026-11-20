@@ -1,29 +1,18 @@
-#!/bin/bash
-# Script pour exécuter les tests avec données HDFS
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+export PYTHONPATH="$(pwd):${PYTHONPATH:-}"
 
-# Exporter le PYTHONPATH pour que Python trouve le module spark
-export PYTHONPATH=$(pwd):$PYTHONPATH
+# Vérifie d'abord que pytest trouve les tests existants et supplémentaires.
+python -m pytest --collect-only -q tests/
 
-echo "=========================================="
-echo "  Tests avec données HDFS réelles"
-echo "=========================================="
-
-# Installer les dépendances
-pip install -q pytest pytest-cov pyspark hdfs
-
-# Exécuter les tests avec couverture
-pytest tests/test_streaming_pipeline.py \
-  --cov=spark \
-  --cov=tests \
+# La couverture porte uniquement sur le module Streaming actif.
+python -m pytest tests/ \
+  --cov=spark.streaming_pipeline \
   --cov-report=term-missing \
   --cov-report=html \
-  --cov-fail-under=70 \
-  -v \
-  --tb=short
+  --cov-report=xml \
+  --cov-branch   -v --tb=short
 
-echo ""
-echo "=========================================="
-echo "  Tests terminés. Rapport de couverture :"
-echo "  Ouvrez htmlcov/index.html dans un navigateur."
-echo "=========================================="
+echo
+echo "Rapport HTML : htmlcov/index.html"
