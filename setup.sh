@@ -1,12 +1,33 @@
 #!/usr/bin/env bash
-set -e
-# Charger les variables d'environnement depuis .env
-if [[ -f .env ]]; then
-  echo "Chargement des variables depuis .env..."
-  export $(grep -v '^#' .env | xargs)
-else
-  echo "⚠️  Fichier .env introuvable. Utilisation des valeurs par défaut."
+set -Eeuo pipefail
+
+# Se placer dans le dossier du projet
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+
+# Créer .env s'il n'existe pas
+if [[ ! -f .env ]]; then
+    if [[ -f .env.example ]]; then
+        cp .env.example .env
+        echo "Fichier .env créé depuis .env.example"
+    else
+        echo "ERREUR : .env.example introuvable"
+        exit 1
+    fi
 fi
+
+# Charger les variables
+set -a
+source .env
+set +a
+
+# Vérifier les variables obligatoires
+: "${DB_USER:=demo}"
+: "${DB_PASSWORD:?DB_PASSWORD doit être renseigné dans .env}"
+
+export DB_USER DB_PASSWORD
+
+echo "Configuration chargée."
 
 # Créer un dossier temporaire pour les fichiers JSON avec variables injectées
 mkdir -p /tmp/connect_configs
@@ -27,12 +48,19 @@ echo "[1/7] Construction et demarrage des conteneurs"
 docker compose up -d --build
 
 echo "[2/7] Attente des bases sources (PostgreSQL legers, ~10 s)..."
-until docker exec db-abassur pg_isready -U demo -d abassurance >/dev/null 2>&1; do
-  echo -n "."; sleep 2
-done; echo " OK"
-until docker exec db-assureplus pg_isready -U demo -d assureplus >/dev/null 2>&1; do
-  echo -n "."; sleep 2
-done; echo " OK"
+until docker exec db-abassur pg_isready \
+  -U "$DB_USER" -d abassurance >/dev/null 2>&1; do
+    echo -n "."
+    sleep 2
+done
+echo " OK"
+
+until docker exec db-assureplus pg_isready \
+  -U "$DB_USER" -d assureplus >/dev/null 2>&1; do
+    echo -n "."
+    sleep 2
+done
+echo " OK"
 
 echo "[3/7] Attente de Kafka..."
 until docker exec kafka /opt/kafka/bin/kafka-broker-api-versions.sh \
