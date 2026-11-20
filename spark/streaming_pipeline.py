@@ -1,8 +1,11 @@
 
 """Spark Structured Streaming : CDC Debezium (Kafka) -> HDFS (Parquet)."""
 
-from pyspark.sql import SparkSession, functions as F, types as T
-
+from py4j.protocol import Py4JJavaError
+from pyspark.errors import PySparkException
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 KAFKA = "kafka:9092"
 HDFS = "hdfs://namenode:9000"
@@ -311,7 +314,7 @@ def bronze(spark, name):
     try:
         return spark.read.parquet(path)
 
-    except Exception as e:
+    except (PySparkException, Py4JJavaError) as e:
         print(f"[bronze] Lecture impossible {path}: {e}")
         return None
 
@@ -864,7 +867,7 @@ def recompute_gold(spark):
                         f"{doublons_path}"
                     )
 
-        except Exception as e:
+        except (PySparkException, Py4JJavaError) as e:
             failed.append(name)
 
             print(
@@ -992,8 +995,11 @@ def main():
                         f"[streaming] Erreur requête "
                         f"{query.name} : {query.exception()}"
                     )
-            except Exception:
-                pass
+            except (PySparkException, Py4JJavaError) as e:
+                print(
+                    f"[streaming] Impossible de lire l'erreur de "
+                    f"{query.name} : {e}"
+                )
 
         raise
 
@@ -1007,14 +1013,14 @@ def main():
                     print(
                         f"[streaming] Requête arrêtée : {query.name}"
                     )
-            except Exception as e:
+            except (PySparkException, Py4JJavaError) as e:
                 print(
                     f"[streaming] Erreur arrêt requête : {e}"
                 )
 
         try:
             spark.stop()
-        except Exception as e:
+        except (PySparkException, Py4JJavaError) as e:
             print(f"[streaming] Erreur arrêt Spark : {e}")
 
         print("[streaming] Application arrêtée")

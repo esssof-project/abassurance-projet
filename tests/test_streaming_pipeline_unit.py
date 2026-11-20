@@ -5,8 +5,11 @@ Ces tests complètent les tests déjà présents dans tests/.
 Ils n'utilisent ni Kafka ni HDFS : les DataFrames sont locaux à Spark.
 """
 import datetime
+
 import pytest
-from pyspark.sql import SparkSession, Row, functions as F, types as T
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 from spark import streaming_pipeline as pipeline
 

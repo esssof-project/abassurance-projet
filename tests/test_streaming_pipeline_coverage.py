@@ -1,11 +1,10 @@
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from pyspark.sql import functions as F
 
 from spark import streaming_pipeline as p
-
 
 # =========================================================
 # 1. CLEANING
