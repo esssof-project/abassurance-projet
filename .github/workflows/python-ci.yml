@@ -36,7 +36,7 @@ jobs:
         
     - name: Test with coverage
       run: |
-        pytest --cov=./ --cov-config=.coveragerc --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
+        pytest --cov=spark.streaming_pipeline --cov-config=.coveragerc --cov-report=xml:coverage.xml --cov-report=html --junitxml=test-results.xml -v
 
     - name: Trust SonarQube TLS certificate
       env:
